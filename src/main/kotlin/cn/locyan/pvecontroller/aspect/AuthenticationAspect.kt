@@ -1,8 +1,8 @@
 package cn.locyan.pvecontroller.aspect
 
 import cn.locyan.pvecontroller.annotation.Authentication
+import cn.locyan.pvecontroller.exception.UnauthorizedException
 import cn.locyan.pvecontroller.service.jdbc.LoginTokenService
-import cn.locyan.pvecontroller.shared.exception.UnauthorizedException
 import org.aspectj.lang.ProceedingJoinPoint
 import org.aspectj.lang.annotation.Around
 import org.aspectj.lang.annotation.Aspect

@@ -1,0 +1,89 @@
+package cn.locyan.pvecontroller.controller
+
+import cn.locyan.pvecontroller.model.IPv6Range
+import cn.locyan.pvecontroller.service.jdbc.IPv6RangeService
+import cn.locyan.pvecontroller.shared.response.Response
+import cn.locyan.pvecontroller.shared.response.ResponseBuilder
+import org.springframework.http.ResponseEntity
+import org.springframework.web.bind.annotation.DeleteMapping
+import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.PutMapping
+import org.springframework.web.bind.annotation.RequestBody
+import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestParam
+import org.springframework.web.bind.annotation.RestController
+
+@RestController
+@RequestMapping("/ipv6-ranges")
+class IPv6RangeController(
+    private val ipv6RangeService: IPv6RangeService,
+    private val builder: ResponseBuilder
+) {
+
+    @PostMapping
+    fun create(@RequestBody range: IPv6Range): ResponseEntity<Response> {
+        return try {
+            val created = ipv6RangeService.create(range)
+            builder.ok().data(created).build()
+        } catch (e: Exception) {
+            builder.exception().message(e.message ?: "Failed to create IPv6 range").build()
+        }
+    }
+
+    @PutMapping("/{id}")
+    fun update(@PathVariable id: Long, @RequestBody range: IPv6Range): ResponseEntity<Response> {
+        return try {
+            range.id = id
+            val updated = ipv6RangeService.update(range)
+            builder.ok().data(updated).build()
+        } catch (e: Exception) {
+            builder.exception().message(e.message ?: "Failed to update IPv6 range").build()
+        }
+    }
+
+    @DeleteMapping("/{id}")
+    fun delete(@PathVariable id: Long): ResponseEntity<Response> {
+        return try {
+            ipv6RangeService.delete(id)
+            builder.ok().message("IPv6 range deleted successfully").build()
+        } catch (e: Exception) {
+            builder.exception().message(e.message ?: "Failed to delete IPv6 range").build()
+        }
+    }
+
+    @GetMapping("/{id}")
+    fun findById(@PathVariable id: Long): ResponseEntity<Response> {
+        return try {
+            val range = ipv6RangeService.findById(id)
+            if (range != null) {
+                builder.ok().data(range).build()
+            } else {
+                builder.exception().message("IPv6 range not found").build()
+            }
+        } catch (e: Exception) {
+            builder.exception().message(e.message ?: "Failed to retrieve IPv6 range").build()
+        }
+    }
+
+    @GetMapping
+    fun findAllByDcId(@RequestParam("dc_id") dcId: Long): ResponseEntity<Response> {
+        return try {
+            val ranges = ipv6RangeService.findAllByDcId(dcId)
+            builder.ok().data(ranges).build()
+        } catch (e: Exception) {
+            builder.exception().message(e.message ?: "Failed to retrieve IPv6 ranges").build()
+        }
+    }
+
+    @GetMapping("/active")
+    fun findActiveByDcId(@RequestParam("dc_id") dcId: Long): ResponseEntity<Response> {
+        return try {
+            val ranges = ipv6RangeService.findActiveByDcId(dcId)
+            builder.ok().data(ranges).build()
+        } catch (e: Exception) {
+            builder.exception().message(e.message ?: "Failed to retrieve active IPv6 ranges").build()
+        }
+    }
+}

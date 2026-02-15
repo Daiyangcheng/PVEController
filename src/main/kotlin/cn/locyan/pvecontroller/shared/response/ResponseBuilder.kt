@@ -78,6 +78,18 @@ class ResponseBuilder {
                 .headers(this.headers)
                 .body(responseBody)
         }
+
+        fun buildString(): ResponseEntity<String> { // 【关键修改点：返回值】
+            val finalData = this.data ?: HashMap<String, Any?>()
+
+            val responseBody = Response(
+                status = this.status,
+                message = this.customMessage ?: this.defaultMessage,
+                data = finalData
+            )
+
+            return ResponseEntity.status(responseBody.status).body(responseBody.message)
+        }
     }
 
     enum class ResponseCode(val code: Int, val message: String) {

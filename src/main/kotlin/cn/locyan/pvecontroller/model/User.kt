@@ -6,10 +6,14 @@ import jakarta.persistence.GeneratedValue
 import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
 import jakarta.persistence.Table
+import lombok.AllArgsConstructor
+import lombok.NoArgsConstructor
 import org.hibernate.annotations.ColumnDefault
-import java.time.Instant
+import java.time.LocalDateTime
 
 @Entity
+@AllArgsConstructor
+@NoArgsConstructor
 @Table(name = "users")
 open class User {
     @Id
@@ -27,13 +31,13 @@ open class User {
     open var email: String? = null
 
     @Column(name = "reg_time", nullable = false)
-    open var regTime: Instant? = null
+    open var regTime: LocalDateTime? = null
 
     @Column(name = "update_time", nullable = false)
-    open var updateTime: Instant? = null
+    open var updateTime: LocalDateTime? = null
 
     @Column(name = "last_login_time")
-    open var lastLoginTime: Instant? = null
+    open var lastLoginTime: LocalDateTime? = null
 
     @ColumnDefault("true")
     @Column(name = "status", nullable = false)

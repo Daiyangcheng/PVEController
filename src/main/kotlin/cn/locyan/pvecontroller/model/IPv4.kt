@@ -1,0 +1,51 @@
+package cn.locyan.pvecontroller.model
+
+import jakarta.persistence.Column
+import jakarta.persistence.Entity
+import jakarta.persistence.GeneratedValue
+import jakarta.persistence.GenerationType
+import jakarta.persistence.Id
+import jakarta.persistence.Table
+import lombok.AllArgsConstructor
+import lombok.NoArgsConstructor
+import org.hibernate.annotations.ColumnDefault
+import java.time.LocalDateTime
+
+@Entity
+@AllArgsConstructor
+@NoArgsConstructor
+@Table(name = "ipv4s")
+open class IPv4 {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id", nullable = false)
+    open var id: Long? = null
+
+    @Column(name = "dc_id", nullable = false)
+    open var dcId: Long? = null
+
+    @Column(name = "ip_address", nullable = false)
+    open var ipAddress: String? = null
+
+    @Column(name = "gateway", nullable = false)
+    open var gateway: String? = null
+
+    @Column(name = "netmask", nullable = false)
+    open var netmask: String? = null
+
+    @Column(name = "vm_id")
+    open var vmId: Long? = null
+
+    @ColumnDefault("false")
+    @Column(name = "is_allocated", nullable = false)
+    open var isAllocated: Boolean? = false
+
+    @Column(name = "node_id")
+    open var nodeId: Long? = null
+
+    @Column(name = "created_time", nullable = false)
+    open var createdTime: LocalDateTime? = null
+
+    @Column(name = "updated_time", nullable = false)
+    open var updatedTime: LocalDateTime? = null
+}

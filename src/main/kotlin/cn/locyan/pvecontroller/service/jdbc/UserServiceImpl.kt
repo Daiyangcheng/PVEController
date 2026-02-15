@@ -22,10 +22,6 @@ class UserServiceImpl(
         return userRepository.findByEmail(email).orElse(null)
     }
 
-    override fun add(user: User): User {
-        return userRepository.save(user)
-    }
-
     override fun update(user: User): User {
         return userRepository.save(user)
     }
