@@ -29,17 +29,6 @@ class TemplateServiceImpl(
         return templateRepository.findById(id).orElse(null)
     }
 
-    override fun findByTemplateIdAndDcId(
-        templateId: Long,
-        dcId: Long
-    ): Template? {
-        return templateRepository.findByTemplateIdAndDcId(templateId, dcId).orElse(null)
-    }
-
-    override fun findAllByDcId(dcId: Long): List<Template> {
-        return templateRepository.findAllByDcId(dcId)
-    }
-
     override fun findByTemplateGroupId(groupId: Long): List<Template> {
         return templateRepository.findByTemplateGroupId(groupId)
     }

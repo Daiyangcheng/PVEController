@@ -14,7 +14,7 @@ import java.time.LocalDateTime
 @Entity
 @AllArgsConstructor
 @NoArgsConstructor
-@Table(name = "ipv4s")
+@Table(name = "ipv4")
 open class IPv4 {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -35,6 +35,9 @@ open class IPv4 {
 
     @Column(name = "vm_id")
     open var vmId: Long? = null
+
+    @Column(name = "server_id")
+    open var serverId: Long? = null
 
     @ColumnDefault("false")
     @Column(name = "is_allocated", nullable = false)

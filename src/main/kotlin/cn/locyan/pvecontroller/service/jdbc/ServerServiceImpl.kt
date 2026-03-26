@@ -21,8 +21,8 @@ class ServerServiceImpl(
         return serverRepository.save(server)
     }
 
-    override fun delete(id: Long) {
-        serverRepository.deleteById(id)
+    override fun delete(server: Server) {
+        serverRepository.delete(server)
     }
 
     override fun findById(id: Long): Server? {

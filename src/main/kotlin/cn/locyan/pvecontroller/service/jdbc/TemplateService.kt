@@ -9,7 +9,5 @@ interface TemplateService {
     fun update(template: Template): Template
     fun delete(id: Long)
     fun findById(id: Long): Template?
-    fun findByTemplateIdAndDcId(templateId: Long, dcId: Long): Template?
-    fun findAllByDcId(dcId: Long): List<Template>
     fun findByTemplateGroupId(groupId: Long): List<Template>
 }

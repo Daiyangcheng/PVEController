@@ -7,9 +7,9 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 
 @RestController
-class IndexController {
-
-    private val builder: ResponseBuilder = ResponseBuilder()
+class IndexController(
+    private val builder: ResponseBuilder,
+) {
 
     @RequestMapping
     fun index(): ResponseEntity<Response> {

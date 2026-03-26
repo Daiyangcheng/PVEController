@@ -24,9 +24,6 @@ open class Template {
     @Column(name = "name", nullable = false)
     open var name: String? = null
 
-    @Column(name = "dc_id", nullable = false)
-    open var dcId: Long? = null
-
     @Column(name = "template_group_id", nullable = false)
     open var templateGroupId: Long? = null
 

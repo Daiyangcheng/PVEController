@@ -7,7 +7,7 @@ import org.springframework.stereotype.Service
 interface ServerService {
     fun create(server: Server): Server
     fun update(server: Server): Server
-    fun delete(id: Long)
+    fun delete(server: Server)
     fun findById(id: Long): Server?
     fun findAllByDcId(dcId: Long): List<Server>
     fun findByUserId(userId: Long): List<Server>

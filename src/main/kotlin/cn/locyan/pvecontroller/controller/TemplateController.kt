@@ -54,12 +54,6 @@ class TemplateController(
         }
     }
 
-    @GetMapping
-    fun findByDcId(@RequestParam("dc_id") dcId: Long): ResponseEntity<Response> {
-        val templates = templateService.findAllByDcId(dcId)
-        return builder.ok().data(templates).build()
-    }
-
     @GetMapping("/group/{groupId}")
     fun findByGroupId(@PathVariable groupId: Long): ResponseEntity<Response> {
         val templates = templateService.findByTemplateGroupId(groupId)

@@ -57,7 +57,9 @@ dependencies {
     testImplementation("org.mybatis.spring.boot:mybatis-spring-boot-starter-test:4.0.1")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 
-    implementation("it.corsinvest.proxmoxve:cv4pve-api-java:9.1.1")
+    implementation("it.corsinvest.proxmoxve:cv4pve-api-java:9.1.3")
+    implementation("com.github.seancfoley:ipaddress:5.6.1")
+    implementation("me.legrange:mikrotik:3.0.8")
 }
 
 kotlin {

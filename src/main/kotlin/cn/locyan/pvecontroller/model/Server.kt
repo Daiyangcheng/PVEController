@@ -28,7 +28,7 @@ open class Server {
     open var name: String? = null
 
     @Column(name = "node_name", nullable = false)
-    open var nodeName: String? = null
+    open var nodeId: Long? = null
 
     @Column(name = "dc_id", nullable = false)
     open var dcId: Long? = null
@@ -59,10 +59,6 @@ open class Server {
 
     @Column(name = "status")
     open var status: String? = null
-
-    @ColumnDefault("false")
-    @Column(name = "is_deleted", nullable = false)
-    open var isDeleted: Boolean? = false
 
     @Column(name = "created_time", nullable = false)
     open var createdTime: LocalDateTime? = null

@@ -7,7 +7,5 @@ import java.util.Optional
 
 @Repository
 interface TemplateRepository : JpaRepository<Template, Long> {
-    fun findAllByDcId(dcId: Long): List<Template>
-    fun findByTemplateIdAndDcId(templateId: Long, dcId: Long): Optional<Template>
     fun findByTemplateGroupId(groupId: Long): List<Template>
 }
