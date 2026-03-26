@@ -1,7 +1,6 @@
 package cn.locyan.pvecontroller.service.jdbc
 
 import cn.locyan.pvecontroller.model.RouterOSApi
-import org.springframework.stereotype.Service
 
 interface RouterOSApiService {
     fun delete(routerOSApi: RouterOSApi)

@@ -1,7 +1,6 @@
 package cn.locyan.pvecontroller.service.jdbc
 
 import cn.locyan.pvecontroller.model.Server
-import org.springframework.stereotype.Service
 
 interface ServerService {
     fun create(server: Server): Server

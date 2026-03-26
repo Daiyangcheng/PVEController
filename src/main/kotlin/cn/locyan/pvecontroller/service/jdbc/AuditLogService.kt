@@ -1,7 +1,6 @@
 package cn.locyan.pvecontroller.service.jdbc
 
 import cn.locyan.pvecontroller.model.AuditLog
-import org.springframework.stereotype.Service
 
 interface AuditLogService {
     fun create(log: AuditLog): AuditLog

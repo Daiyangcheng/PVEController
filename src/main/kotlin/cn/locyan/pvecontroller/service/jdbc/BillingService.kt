@@ -1,7 +1,6 @@
 package cn.locyan.pvecontroller.service.jdbc
 
 import cn.locyan.pvecontroller.model.BillingRecord
-import org.springframework.stereotype.Service
 import java.math.BigDecimal
 
 interface BillingService {

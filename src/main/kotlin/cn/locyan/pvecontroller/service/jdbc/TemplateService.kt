@@ -1,7 +1,6 @@
 package cn.locyan.pvecontroller.service.jdbc
 
 import cn.locyan.pvecontroller.model.Template
-import org.springframework.stereotype.Service
 
 interface TemplateService {
     fun create(template: Template): Template

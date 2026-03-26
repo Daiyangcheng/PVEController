@@ -1,7 +1,6 @@
 package cn.locyan.pvecontroller.service.jdbc
 
 import cn.locyan.pvecontroller.model.IPv4
-import org.springframework.stereotype.Service
 
 interface IPv4Service {
     fun create(ipv4: IPv4): IPv4

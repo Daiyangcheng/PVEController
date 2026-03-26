@@ -1,7 +1,6 @@
 package cn.locyan.pvecontroller.service.jdbc
 
 import cn.locyan.pvecontroller.model.TemplateGroup
-import org.springframework.stereotype.Service
 
 interface TemplateGroupService {
     fun create(group: TemplateGroup): TemplateGroup

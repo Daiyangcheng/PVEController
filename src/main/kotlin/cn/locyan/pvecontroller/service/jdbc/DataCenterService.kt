@@ -1,7 +1,6 @@
 package cn.locyan.pvecontroller.service.jdbc
 
 import cn.locyan.pvecontroller.model.DataCenter
-import org.springframework.stereotype.Service
 
 interface DataCenterService {
     fun create(dataCenter: DataCenter): DataCenter

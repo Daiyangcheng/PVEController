@@ -90,7 +90,6 @@ class IPv6AllocationController(
     @PostMapping("/allocate")
     fun allocate(
         @RequestParam("range_id") rangeId: Long,
-        @RequestParam(value = "method", required = false, defaultValue = "sequential") method: String = "sequential"
     ): ResponseEntity<Response> {
         val allocation = ipv6AllocationService.allocateIPv6(rangeId)
         if (allocation != null) {

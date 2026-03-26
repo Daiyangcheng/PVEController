@@ -1,7 +1,6 @@
 package cn.locyan.pvecontroller.service.jdbc
 
 import cn.locyan.pvecontroller.model.MonitoringAlert
-import org.springframework.stereotype.Service
 
 interface MonitoringAlertService {
     fun create(alert: MonitoringAlert): MonitoringAlert

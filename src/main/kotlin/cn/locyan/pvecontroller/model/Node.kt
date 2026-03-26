@@ -9,7 +9,6 @@ import jakarta.persistence.Table
 import lombok.AllArgsConstructor
 import lombok.NoArgsConstructor
 import org.hibernate.annotations.ColumnDefault
-import java.time.Instant
 import java.time.LocalDateTime
 
 @Entity
