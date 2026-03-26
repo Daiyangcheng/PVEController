@@ -15,37 +15,37 @@ import java.time.LocalDateTime
 @AllArgsConstructor
 @NoArgsConstructor
 @Table(name = "datacenter")
-open class DataCenter {
+class DataCenter {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id", nullable = false)
-    open var id: Long? = null
+    var id: Long? = null
 
     @Column(name = "name", nullable = false)
-    open var name: String? = null
+    var name: String? = null
 
     @Column(name = "host", nullable = false)
-    open var host: String? = null
+    var host: String? = null
 
     @Column(name = "port", nullable = false)
-    open var port: Int? = 8006
+    var port: Int? = 8006
 
     @Column(name = "ssl", nullable = false)
-    open var ssl: Boolean? = true
+    var ssl: Boolean? = true
 
     @Column(name = "token_id", nullable = false)
-    open var tokenId: String? = null
+    var tokenId: String? = null
 
     @Column(name = "token_secret", nullable = false)
-    open var tokenSecret: String? = null
+    var tokenSecret: String? = null
 
     @ColumnDefault("true")
     @Column(name = "status", nullable = false)
-    open var status: Boolean? = null
+    var status: Boolean? = null
 
     @Column(name = "created_time", nullable = false)
-    open var createdTime: LocalDateTime? = null
+    var createdTime: LocalDateTime? = null
 
     @Column(name = "updated_time", nullable = false)
-    open var updatedTime: LocalDateTime? = null
+    var updatedTime: LocalDateTime? = null
 }

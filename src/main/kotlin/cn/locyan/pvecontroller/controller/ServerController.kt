@@ -1,6 +1,5 @@
 package cn.locyan.pvecontroller.controller
 
-import cn.locyan.pvecontroller.model.IPv4
 import cn.locyan.pvecontroller.model.IPv6Allocation
 import cn.locyan.pvecontroller.model.Server
 import cn.locyan.pvecontroller.service.jdbc.DataCenterService
@@ -27,7 +26,6 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import java.time.LocalDateTime
-import java.util.UUID
 
 @RestController
 @RequestMapping("/servers")
@@ -63,7 +61,7 @@ class ServerController(
         @RequestParam(value = "name", required = false) name: String? = null,
     ): ResponseEntity<Response> {
         val node = nodeService.findById(nodeId) ?: return builder.notFound().message("节点不存在").build()
-        val dcId = node.dcId ?: return builder.exception().message("该节点未配置数据中心 ID").build();
+        val dcId = node.dcId ?: return builder.exception().message("该节点未配置数据中心 ID").build()
         val dc = dataCenterService.findById(dcId) ?: return builder.notFound().message("数据中心不存在").build()
         val serverGroup = serverGroupService.findById(serverGroupId!!) ?: return builder.notFound().message("服务器组别不存在").build()
         if (dcId != serverGroup.dcId) return builder.exception().message("服务器组不可跨数据中心使用").build()
@@ -274,7 +272,7 @@ class ServerController(
     ): ResponseEntity<Response> {
         val server = serverService.findById(id) ?: return builder.exception().message("Server not found").build()
         val node = nodeService.findById(server.nodeId!!) ?: return builder.exception().message("找不到该节点").build()
-        val dataCenter = dataCenterService.findById(dcId) ?: return builder.notFound().message("数据中心不存在").build()
+        dataCenterService.findById(dcId) ?: return builder.notFound().message("数据中心不存在").build()
         val client = pveClient.newClient(dcId) ?: return builder.notFound().message("无法连接至 PVE 控制器，请检查控制台输出查看详细报错内容").build()
 
         val deleteReq = client.nodes[node.name].qemu[server.vmId].destroyVm()

@@ -14,36 +14,36 @@ import java.time.LocalDateTime
 @AllArgsConstructor
 @NoArgsConstructor
 @Table(name = "audit_logs")
-open class AuditLog {
+class AuditLog {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id", nullable = false)
-    open var id: Long? = null
+    var id: Long? = null
 
     @Column(name = "user_id", nullable = false)
-    open var userId: Long? = null
+    var userId: Long? = null
 
     @Column(name = "action", nullable = false)
-    open var action: String? = null
+    var action: String? = null
 
     @Column(name = "resource_type")
-    open var resourceType: String? = null
+    var resourceType: String? = null
 
     @Column(name = "resource_id")
-    open var resourceId: Long? = null
+    var resourceId: Long? = null
 
     @Column(name = "dc_id")
-    open var dcId: Long? = null
+    var dcId: Long? = null
 
     @Column(name = "details", columnDefinition = "TEXT")
-    open var details: String? = null
+    var details: String? = null
 
     @Column(name = "ip_address")
-    open var ipAddress: String? = null
+    var ipAddress: String? = null
 
     @Column(name = "status")
-    open var status: String? = null
+    var status: String? = null
 
     @Column(name = "created_time", nullable = false)
-    open var createdTime: LocalDateTime? = null
+    var createdTime: LocalDateTime? = null
 }

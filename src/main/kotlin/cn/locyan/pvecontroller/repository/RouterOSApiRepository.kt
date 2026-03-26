@@ -5,5 +5,4 @@ import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.stereotype.Repository
 
 @Repository
-interface RouterOSApiRepository : JpaRepository<RouterOSApi, Long> {
-}
+interface RouterOSApiRepository : JpaRepository<RouterOSApi, Long>

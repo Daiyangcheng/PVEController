@@ -15,32 +15,32 @@ import java.time.LocalDateTime
 @AllArgsConstructor
 @NoArgsConstructor
 @Table(name = "users")
-open class User {
+class User {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id", nullable = false)
-    open var id: Long? = null
+    var id: Long? = null
 
     @Column(name = "username", nullable = false)
-    open var username: String? = null
+    var username: String? = null
 
     @Column(name = "password", nullable = false)
-    open var password: String? = null
+    var password: String? = null
 
     @Column(name = "email", nullable = false)
-    open var email: String? = null
+    var email: String? = null
 
     @Column(name = "reg_time", nullable = false)
-    open var regTime: LocalDateTime? = null
+    var regTime: LocalDateTime? = null
 
     @Column(name = "update_time", nullable = false)
-    open var updateTime: LocalDateTime? = null
+    var updateTime: LocalDateTime? = null
 
     @Column(name = "last_login_time")
-    open var lastLoginTime: LocalDateTime? = null
+    var lastLoginTime: LocalDateTime? = null
 
     @ColumnDefault("true")
     @Column(name = "status", nullable = false)
-    open var status: Boolean? = null
+    var status: Boolean? = null
 
 }

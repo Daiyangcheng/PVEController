@@ -15,38 +15,38 @@ import java.time.LocalDateTime
 @AllArgsConstructor
 @NoArgsConstructor
 @Table(name = "ipv6_ranges")
-open class IPv6Range {
+class IPv6Range {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id", nullable = false)
-    open var id: Long? = null
+    var id: Long? = null
 
     @Column(name = "dc_id", nullable = false)
-    open var dcId: Long? = null
+    var dcId: Long? = null
 
     @Column(name = "start_address", nullable = false)
-    open var startAddress: String? = null
+    var startAddress: String? = null
 
     @Column(name = "end_address", nullable = false)
-    open var endAddress: String? = null
+    var endAddress: String? = null
 
     @Column(name = "gateway", nullable = false)
-    open var gateway: String? = null
+    var gateway: String? = null
 
     @Column(name = "prefix_length")
-    open var prefixLength: Int? = null
+    var prefixLength: Int? = null
 
     @ColumnDefault("true")
     @Column(name = "is_active", nullable = false)
-    open var isActive: Boolean? = true
+    var isActive: Boolean? = true
 
     @ColumnDefault("0")
     @Column(name = "allocated_count")
-    open var allocatedCount: Long? = 0
+    var allocatedCount: Long? = 0
 
     @Column(name = "created_time", nullable = false)
-    open var createdTime: LocalDateTime? = null
+    var createdTime: LocalDateTime? = null
 
     @Column(name = "updated_time", nullable = false)
-    open var updatedTime: LocalDateTime? = null
+    var updatedTime: LocalDateTime? = null
 }

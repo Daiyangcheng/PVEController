@@ -15,46 +15,46 @@ import java.time.LocalDateTime
 @AllArgsConstructor
 @NoArgsConstructor
 @Table(name = "monitoring_alerts")
-open class MonitoringAlert {
+class MonitoringAlert {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id", nullable = false)
-    open var id: Long? = null
+    var id: Long? = null
 
     @Column(name = "dc_id", nullable = false)
-    open var dcId: Long? = null
+    var dcId: Long? = null
 
     @Column(name = "resource_type")
-    open var resourceType: String? = null
+    var resourceType: String? = null
 
     @Column(name = "resource_id")
-    open var resourceId: Long? = null
+    var resourceId: Long? = null
 
     @Column(name = "alert_type")
-    open var alertType: String? = null
+    var alertType: String? = null
 
     @Column(name = "severity")
-    open var severity: String? = null
+    var severity: String? = null
 
     @Column(name = "message")
-    open var message: String? = null
+    var message: String? = null
 
     @Column(name = "current_value")
-    open var currentValue: String? = null
+    var currentValue: String? = null
 
     @Column(name = "threshold_value")
-    open var thresholdValue: String? = null
+    var thresholdValue: String? = null
 
     @ColumnDefault("false")
     @Column(name = "is_resolved")
-    open var isResolved: Boolean? = false
+    var isResolved: Boolean? = false
 
     @Column(name = "resolved_time")
-    open var resolvedTime: LocalDateTime? = null
+    var resolvedTime: LocalDateTime? = null
 
     @Column(name = "created_time", nullable = false)
-    open var createdTime: LocalDateTime? = null
+    var createdTime: LocalDateTime? = null
 
     @Column(name = "updated_time", nullable = false)
-    open var updatedTime: LocalDateTime? = null
+    var updatedTime: LocalDateTime? = null
 }

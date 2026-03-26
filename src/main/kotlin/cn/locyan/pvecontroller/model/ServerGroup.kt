@@ -14,27 +14,27 @@ import java.time.LocalDateTime
 @AllArgsConstructor
 @NoArgsConstructor
 @Table(name = "server_groups")
-open class ServerGroup {
+class ServerGroup {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id", nullable = false)
-    open var id: Long? = null
+    var id: Long? = null
 
     @Column(name = "name", nullable = false)
-    open var name: String? = null
+    var name: String? = null
 
     @Column(name = "dc_id", nullable = false)
-    open var dcId: Long? = null
+    var dcId: Long? = null
 
     @Column(name = "user_id", nullable = false)
-    open var userId: Long? = null
+    var userId: Long? = null
 
     @Column(name = "description")
-    open var description: String? = null
+    var description: String? = null
 
     @Column(name = "created_time", nullable = false)
-    open var createdTime: LocalDateTime? = null
+    var createdTime: LocalDateTime? = null
 
     @Column(name = "updated_time", nullable = false)
-    open var updatedTime: LocalDateTime? = null
+    var updatedTime: LocalDateTime? = null
 }

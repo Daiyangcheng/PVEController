@@ -15,20 +15,20 @@ class RouterOSApi {
     private var id: Long? = null
 
     @Column(name = "name", nullable = false)
-    open var name: String? = null
+    var name: String? = null
 
     @Column(name = "host", nullable = false)
-    open var host: String? = null
+    var host: String? = null
 
     @Column(name = "ssl", nullable = false)
-    open var ssl: Boolean? = null
+    var ssl: Boolean? = null
 
     @Column(name = "`user`", nullable = false)
-    open var user: String? = null
+    var user: String? = null
 
     @Column(name = "password", nullable = false)
-    open var password: String? = null
+    var password: String? = null
 
     @Column(name = "port", nullable = false)
-    open var port: Int? = null
+    var port: Int? = null
 }

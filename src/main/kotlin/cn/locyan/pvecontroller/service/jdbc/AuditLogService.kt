@@ -3,7 +3,6 @@ package cn.locyan.pvecontroller.service.jdbc
 import cn.locyan.pvecontroller.model.AuditLog
 import org.springframework.stereotype.Service
 
-@Service
 interface AuditLogService {
     fun create(log: AuditLog): AuditLog
     fun findByUserId(userId: Long): List<AuditLog>

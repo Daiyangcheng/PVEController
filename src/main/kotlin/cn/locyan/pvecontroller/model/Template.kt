@@ -15,34 +15,34 @@ import java.time.LocalDateTime
 @AllArgsConstructor
 @NoArgsConstructor
 @Table(name = "templates")
-open class Template {
+class Template {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id", nullable = false)
-    open var id: Long? = null
+    var id: Long? = null
 
     @Column(name = "name", nullable = false)
-    open var name: String? = null
+    var name: String? = null
 
     @Column(name = "template_group_id", nullable = false)
-    open var templateGroupId: Long? = null
+    var templateGroupId: Long? = null
 
     @Column(name = "template_id", nullable = false)
-    open var templateId: Long? = null
+    var templateId: Long? = null
 
     @Column(name = "os_type")
-    open var osType: String? = null
+    var osType: String? = null
 
     @ColumnDefault("true")
     @Column(name = "cloud_init_enabled")
-    open var cloudInitEnabled: Boolean? = null
+    var cloudInitEnabled: Boolean? = null
 
     @Column(name = "description")
-    open var description: String? = null
+    var description: String? = null
 
     @Column(name = "created_time", nullable = false)
-    open var createdTime: LocalDateTime? = null
+    var createdTime: LocalDateTime? = null
 
     @Column(name = "updated_time", nullable = false)
-    open var updatedTime: LocalDateTime? = null
+    var updatedTime: LocalDateTime? = null
 }

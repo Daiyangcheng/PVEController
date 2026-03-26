@@ -3,7 +3,6 @@ package cn.locyan.pvecontroller.service.jdbc
 import cn.locyan.pvecontroller.model.User
 import org.springframework.stereotype.Service
 
-@Service
 interface UserService {
     fun findById(userId: Long): User?
     fun findByUsername(username: String): User?

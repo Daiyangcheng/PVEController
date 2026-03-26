@@ -7,15 +7,15 @@ import jakarta.persistence.Table
 
 @Entity
 @Table(name = "login_token")
-open class LoginToken {
+class LoginToken {
     @Id
     @Column(name = "user_id", nullable = false)
-    open var id: Long? = null
+    var id: Long? = null
 
     @Column(name = "login_token", nullable = false)
-    open var loginToken: String? = null
+    var loginToken: String? = null
 
     @Column(name = "ua")
-    open var ua: String? = null
+    var ua: String? = null
 
 }

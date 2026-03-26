@@ -4,7 +4,6 @@ import cn.locyan.pvecontroller.model.BillingRecord
 import org.springframework.stereotype.Service
 import java.math.BigDecimal
 
-@Service
 interface BillingService {
     fun create(record: BillingRecord): BillingRecord
     fun update(record: BillingRecord): BillingRecord

@@ -16,52 +16,52 @@ import java.time.LocalDateTime
 @AllArgsConstructor
 @NoArgsConstructor
 @Table(name = "nodes")
-open class Node {
+class Node {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id", nullable = false)
-    open var id: Long? = null
+    var id: Long? = null
 
     @Column(name = "name", nullable = false)
-    open var name: String? = null
+    var name: String? = null
 
     @Column(name = "\"group\"")
-    open var group: Long? = null
+    var group: Long? = null
 
     @Column(name = "cpu")
-    open var cpu: Double? = null
+    var cpu: Double? = null
 
     @Column(name = "maxcpu")
-    open var maxcpu: Long? = null
+    var maxcpu: Long? = null
 
     @Column(name = "mem")
-    open var mem: Long? = null
+    var mem: Long? = null
 
     @Column(name = "maxmem")
-    open var maxmem: Long? = null
+    var maxmem: Long? = null
 
     @ColumnDefault("NULL")
     @Column(name = "level")
-    open var level: String? = null
+    var level: String? = null
 
     @ColumnDefault("NULL")
     @Column(name = "ssl_fingerprint")
-    open var sslFingerprint: String? = null
+    var sslFingerprint: String? = null
 
     @Column(name = "uptime")
-    open var uptime: Long? = null
+    var uptime: Long? = null
 
     @ColumnDefault("false")
     @Column(name = "status", nullable = false)
-    open var status: Boolean? = null
+    var status: Boolean? = null
 
     @Column(name = "created_time", nullable = false)
-    open var createdTime: LocalDateTime? = null
+    var createdTime: LocalDateTime? = null
 
     @Column(name = "updated_time", nullable = false)
-    open var updatedTime: LocalDateTime? = null
+    var updatedTime: LocalDateTime? = null
 
     @Column(name = "dc_id", nullable = false)
-    open var dcId: Long? = null
+    var dcId: Long? = null
 
 }

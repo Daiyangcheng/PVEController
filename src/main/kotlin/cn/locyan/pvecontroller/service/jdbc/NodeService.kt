@@ -3,7 +3,6 @@ package cn.locyan.pvecontroller.service.jdbc
 import cn.locyan.pvecontroller.model.Node
 import org.springframework.stereotype.Service
 
-@Service
 interface NodeService {
     fun update(node: Node)
     fun delete(node: Node)
