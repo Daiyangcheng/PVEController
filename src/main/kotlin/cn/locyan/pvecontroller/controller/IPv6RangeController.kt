@@ -23,17 +23,31 @@ class IPv6RangeController(
 ) {
 
     @PostMapping
-    fun create(@RequestBody range: IPv6Range): ResponseEntity<Response> {
-        return try {
-            val created = ipv6RangeService.create(range)
-            builder.ok().data(created).build()
-        } catch (e: Exception) {
-            builder.exception().message(e.message ?: "Failed to create IPv6 range").build()
+    fun create(
+        @RequestParam("dc_id") dcId: Long? = null,
+        @RequestParam("start_address") startAddress: String? = null,
+        @RequestParam("end_address") endAddress: String? = null,
+        @RequestParam("gateway") gateway: String? = null,
+        @RequestParam("prefix_length") prefixLength: Int? = null,
+    ): ResponseEntity<Response> {
+        val range = IPv6Range()
+        range.apply {
+            this.id = null
+            this.dcId = dcId
+            this.startAddress = startAddress
+            this.endAddress = endAddress
+            this.gateway = gateway
+            this.prefixLength = prefixLength
         }
+        val created = ipv6RangeService.create(range)
+        return builder.ok().data(created).build()
     }
 
     @PutMapping("/{id}")
-    fun update(@PathVariable id: Long, @RequestBody range: IPv6Range): ResponseEntity<Response> {
+    fun update(
+        @PathVariable id: Long,
+        @RequestBody range: IPv6Range
+    ): ResponseEntity<Response> {
         return try {
             range.id = id
             val updated = ipv6RangeService.update(range)

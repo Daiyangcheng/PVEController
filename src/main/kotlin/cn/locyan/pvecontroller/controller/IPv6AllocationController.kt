@@ -92,7 +92,7 @@ class IPv6AllocationController(
         @RequestParam("range_id") rangeId: Long,
         @RequestParam(value = "method", required = false, defaultValue = "sequential") method: String = "sequential"
     ): ResponseEntity<Response> {
-        val allocation = ipv6AllocationService.allocateIPv6(rangeId, method)
+        val allocation = ipv6AllocationService.allocateIPv6(rangeId)
         if (allocation != null) {
             return builder.ok().data(allocation).message("IPv6 allocated successfully").build()
         } else {

@@ -9,6 +9,6 @@ interface IPv6AllocationService {
     fun findById(id: Long): IPv6Allocation?
     fun findAllByRangeId(rangeId: Long): List<IPv6Allocation>
     fun findByServerId(serverId: Long): IPv6Allocation?
-    fun allocateIPv6(rangeId: Long, method: String = "sequential"): IPv6Allocation?
+    fun allocateIPv6(rangeId: Long): IPv6Allocation?
     fun deallocateIPv6(ipv6Id: Long)
 }

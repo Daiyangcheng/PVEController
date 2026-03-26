@@ -3,6 +3,10 @@ package cn.locyan.pvecontroller.service.jdbc
 import cn.locyan.pvecontroller.model.IPv6Allocation
 import cn.locyan.pvecontroller.repository.IPv6AllocationRepository
 import cn.locyan.pvecontroller.repository.IPv6RangeRepository
+import inet.ipaddr.AddressStringException
+import inet.ipaddr.IPAddress
+import inet.ipaddr.IPAddressString
+import inet.ipaddr.ipv6.IPv6Address
 import org.springframework.stereotype.Service
 import java.time.LocalDateTime
 
@@ -39,45 +43,45 @@ class IPv6AllocationServiceImpl(
         return ipv6AllocationRepository.findByServerId(serverId)
     }
 
-    override fun allocateIPv6(rangeId: Long, method: String): IPv6Allocation? {
+    override fun allocateIPv6(rangeId: Long): IPv6Allocation? {
         val range = ipv6RangeRepository.findById(rangeId).orElse(null) ?: return null
         if (!range.isActive!!) return null
 
-        // Sequential allocation: parse start address and allocate next available
-        if (method == "sequential") {
-            val allocations = ipv6AllocationRepository.findAllByIpv6RangeId(rangeId)
-            val nextAddress = if (allocations.isEmpty()) {
-                range.startAddress
-            } else {
-                // Simple increment logic (IPv6 address increment)
-                incrementIPv6Address(allocations.last().assignedAddress ?: range.startAddress!!)
-            }
-
-            val allocation = IPv6Allocation().apply {
-                this.ipv6RangeId = rangeId
-                this.dcId = range.dcId
-                this.assignedAddress = nextAddress
-            }
-            range.allocatedCount = (range.allocatedCount ?: 0L) + 1L
-            ipv6RangeRepository.save(range)
-            return create(allocation)
+        // 顺序分配
+        val allocations = ipv6AllocationRepository.findAllByIpv6RangeId(rangeId)
+        val nextAddress = if (allocations.isEmpty()) {
+            range.startAddress
+        } else {
+            incrementIPv6Address(allocations.last().assignedAddress ?: range.startAddress!!).toString()
         }
-        return null
+
+        val allocation = IPv6Allocation().apply {
+            this.ipv6RangeId = rangeId
+            this.dcId = range.dcId
+            this.assignedAddress = nextAddress
+        }
+        range.allocatedCount = (range.allocatedCount ?: 0L) + 1L
+        ipv6RangeRepository.save(range)
+        return create(allocation)
     }
 
     override fun deallocateIPv6(ipv6Id: Long) {
         val allocation = findById(ipv6Id) ?: return
         delete(ipv6Id)
         
-        // Decrement allocated count in range
         val range = ipv6RangeRepository.findById(allocation.ipv6RangeId ?: return).orElse(null) ?: return
         range.allocatedCount = maxOf(0L, (range.allocatedCount ?: 0L) - 1L)
         ipv6RangeRepository.save(range)
     }
 
-    private fun incrementIPv6Address(address: String): String {
-        // Simple IPv6 increment logic: for demo, just append suffix counter
-        // In production, use proper IPv6 arithmetic library
-        return address
+    private fun incrementIPv6Address(address: String): IPv6Address? {
+        var ip6Addr: IPAddress
+        try {
+            ip6Addr = IPAddressString(address).toAddress()
+        } catch (e: AddressStringException){
+            return null
+        }
+        val nextIp = ip6Addr.toIPv6().increment(1)
+        return nextIp
     }
 }
