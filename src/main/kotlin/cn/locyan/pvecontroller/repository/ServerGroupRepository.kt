@@ -4,6 +4,6 @@ import cn.locyan.pvecontroller.model.ServerGroup
 import org.springframework.data.jpa.repository.JpaRepository
 
 interface ServerGroupRepository : JpaRepository<ServerGroup, Long> {
-    fun findAllByDcId(dcId: Long): List<ServerGroup>
+    fun findAllByNodeId(nodeId: Long): List<ServerGroup>
     fun findByUserId(userId: Long): List<ServerGroup>
 }

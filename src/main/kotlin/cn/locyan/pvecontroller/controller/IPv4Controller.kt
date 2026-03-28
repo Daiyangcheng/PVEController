@@ -44,7 +44,6 @@ class IPv4Controller(
         repeat(count) {
             val ipAddress = "${startParts[0]}.${startParts[1]}.${startParts[2]}.$lastOctet"
             val ipv4 = IPv4()
-            ipv4.dcId = dcId
             ipv4.nodeId = nodeId
             ipv4.ipAddress = ipAddress
             ipv4.gateway = gateway

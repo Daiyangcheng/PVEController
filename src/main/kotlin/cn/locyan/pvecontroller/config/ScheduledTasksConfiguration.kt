@@ -1,6 +1,5 @@
 package cn.locyan.pvecontroller.config
 
-import cn.locyan.pvecontroller.service.jdbc.MonitoringAlertService
 import cn.locyan.pvecontroller.service.jdbc.NodeService
 import cn.locyan.pvecontroller.service.jdbc.StorageService
 import org.springframework.context.annotation.Configuration
@@ -23,7 +22,6 @@ import org.slf4j.LoggerFactory
 class ScheduledTasksConfiguration(
     private val nodeService: NodeService,
     private val storageService: StorageService,
-    private val monitoringAlertService: MonitoringAlertService
 ) {
 
     private val logger = LoggerFactory.getLogger(ScheduledTasksConfiguration::class.java)

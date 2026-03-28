@@ -32,11 +32,11 @@ class StorageServiceImpl(
         return storageRepository.findById(id).orElse(null)
     }
 
-    override fun findAllByDcId(dcId: Long): List<Storage> {
-        return storageRepository.findAllByDcId(dcId)
+    override fun findAllByNodeId(nodeId: Long): List<Storage> {
+        return storageRepository.findAllByNodeId(nodeId)
     }
 
-    override fun findByNodeName(nodeName: String, dcId: Long): List<Storage> {
-        return storageRepository.findByNodeNameAndDcId(nodeName, dcId)
+    override fun findByNodeNameAndNodeId(nodeName: String, nodeId: Long): List<Storage> {
+        return storageRepository.findByNodeNameAndNodeId(nodeName, nodeId)
     }
 }

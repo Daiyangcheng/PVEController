@@ -29,8 +29,8 @@ class ServerGroupServiceImpl(
         return serverGroupRepository.findById(id).orElse(null)
     }
 
-    override fun findAllByDcId(dcId: Long): List<ServerGroup> {
-        return serverGroupRepository.findAllByDcId(dcId)
+    override fun findAllByNodeId(nodeId: Long): List<ServerGroup> {
+        return serverGroupRepository.findAllByNodeId(nodeId)
     }
 
     override fun findByUserId(userId: Long): List<ServerGroup> {

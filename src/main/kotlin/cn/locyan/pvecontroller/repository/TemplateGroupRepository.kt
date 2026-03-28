@@ -6,6 +6,6 @@ import org.springframework.stereotype.Repository
 
 @Repository
 interface TemplateGroupRepository : JpaRepository<TemplateGroup, Long> {
-    fun findAllByDcId(dcId: Long): List<TemplateGroup>
-    fun findByNameAndDcId(name: String, dcId: Long): TemplateGroup?
+    fun findAllByNodeId(nodeId: Long): List<TemplateGroup>
+    fun findByNameAndNodeId(name: String, nodeId: Long): TemplateGroup?
 }

@@ -10,15 +10,15 @@ class TemplateGroupServiceImpl(
     private val templateGroupRepository: TemplateGroupRepository
 ) : TemplateGroupService {
 
-    override fun create(templateGroup: TemplateGroup): TemplateGroup {
-        templateGroup.createdTime = LocalDateTime.now()
-        templateGroup.updatedTime = LocalDateTime.now()
-        return templateGroupRepository.save(templateGroup)
+    override fun create(group: TemplateGroup): TemplateGroup {
+        group.createdTime = LocalDateTime.now()
+        group.updatedTime = LocalDateTime.now()
+        return templateGroupRepository.save(group)
     }
 
-    override fun update(templateGroup: TemplateGroup): TemplateGroup {
-        templateGroup.updatedTime = LocalDateTime.now()
-        return templateGroupRepository.save(templateGroup)
+    override fun update(group: TemplateGroup): TemplateGroup {
+        group.updatedTime = LocalDateTime.now()
+        return templateGroupRepository.save(group)
     }
 
     override fun delete(id: Long) {
@@ -29,11 +29,11 @@ class TemplateGroupServiceImpl(
         return templateGroupRepository.findById(id).orElse(null)
     }
 
-    override fun findAllByDcId(dcId: Long): List<TemplateGroup> {
-        return templateGroupRepository.findAllByDcId(dcId)
+    override fun findAllByNodeId(nodeId: Long): List<TemplateGroup> {
+        return templateGroupRepository.findAllByNodeId(nodeId)
     }
 
-    override fun findByNameAndDcId(name: String, dcId: Long): TemplateGroup? {
-        return templateGroupRepository.findByNameAndDcId(name, dcId)
+    override fun findByNameAndNodeId(name: String, nodeId: Long): TemplateGroup? {
+        return templateGroupRepository.findByNameAndNodeId(name, nodeId)
     }
 }

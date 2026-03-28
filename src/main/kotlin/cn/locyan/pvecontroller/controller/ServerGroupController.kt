@@ -52,8 +52,8 @@ class ServerGroupController(
     }
 
     @GetMapping
-    fun findAllByDcId(@RequestParam("dc_id") dcId: Long): ResponseEntity<Response> {
-        val serverGroups = serverGroupService.findAllByDcId(dcId)
+    fun findAllByDcId(@RequestParam("node_id") nodeId: Long): ResponseEntity<Response> {
+        val serverGroups = serverGroupService.findAllByNodeId(nodeId)
         return builder.ok().data(serverGroups).build()
     }
 

@@ -52,14 +52,14 @@ class TemplateGroupController(
     }
 
     @GetMapping
-    fun findAllByDcId(@RequestParam("dc_id") dcId: Long): ResponseEntity<Response> {
-        val templateGroups = templateGroupService.findAllByDcId(dcId)
+    fun findAllByDcId(@RequestParam("node_id") nodeId: Long): ResponseEntity<Response> {
+        val templateGroups = templateGroupService.findAllByNodeId(nodeId)
         return builder.ok().data(templateGroups).build()
     }
 
     @GetMapping("/name")
-    fun findByNameAndDcId(@RequestParam name: String, @RequestParam("dc_id") dcId: Long): ResponseEntity<Response> {
-        val templateGroup = templateGroupService.findByNameAndDcId(name, dcId)
+    fun findByNameAndDcId(@RequestParam name: String, @RequestParam("node_id") nodeId: Long): ResponseEntity<Response> {
+        val templateGroup = templateGroupService.findByNameAndNodeId(name, nodeId)
         if (templateGroup != null) {
             return builder.ok().data(templateGroup).build()
         } else {

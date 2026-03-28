@@ -23,8 +23,8 @@ class ServerGroup {
     @Column(name = "name", nullable = false)
     var name: String? = null
 
-    @Column(name = "dc_id", nullable = false)
-    var dcId: Long? = null
+    @Column(name = "node_id", nullable = false)
+    var nodeId: Long? = null
 
     @Column(name = "user_id", nullable = false)
     var userId: Long? = null

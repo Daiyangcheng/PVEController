@@ -26,7 +26,7 @@ class Server {
     @Column(name = "name", nullable = false)
     var name: String? = null
 
-    @Column(name = "node_name", nullable = false)
+    @Column(name = "node_is", nullable = false)
     var nodeId: Long? = null
 
     @Column(name = "dc_id", nullable = false)

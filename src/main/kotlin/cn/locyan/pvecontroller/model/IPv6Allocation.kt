@@ -21,9 +21,6 @@ class IPv6Allocation {
     @Column(name = "id", nullable = false)
     var id: Long? = null
 
-    @Column(name = "dc_id", nullable = false)
-    var dcId: Long? = null
-
     @Column(name = "ipv6_range_id", nullable = false)
     var ipv6RangeId: Long? = null
 

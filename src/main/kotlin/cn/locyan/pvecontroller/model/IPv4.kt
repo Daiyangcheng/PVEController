@@ -21,9 +21,6 @@ class IPv4 {
     @Column(name = "id", nullable = false)
     var id: Long? = null
 
-    @Column(name = "dc_id", nullable = false)
-    var dcId: Long? = null
-
     @Column(name = "ip_address", nullable = false)
     var ipAddress: String? = null
 

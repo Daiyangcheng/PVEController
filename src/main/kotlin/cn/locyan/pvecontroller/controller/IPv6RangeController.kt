@@ -24,7 +24,7 @@ class IPv6RangeController(
 
     @PostMapping
     fun create(
-        @RequestParam("dc_id") dcId: Long? = null,
+        @RequestParam("node_id") nodeId: Long? = null,
         @RequestParam("start_address") startAddress: String? = null,
         @RequestParam("end_address") endAddress: String? = null,
         @RequestParam("gateway") gateway: String? = null,
@@ -33,7 +33,7 @@ class IPv6RangeController(
         val range = IPv6Range()
         range.apply {
             this.id = null
-            this.dcId = dcId
+            this.nodeId = nodeId
             this.startAddress = startAddress
             this.endAddress = endAddress
             this.gateway = gateway
@@ -82,9 +82,9 @@ class IPv6RangeController(
     }
 
     @GetMapping
-    fun findAllByDcId(@RequestParam("dc_id") dcId: Long): ResponseEntity<Response> {
+    fun findAllByDcId(@RequestParam("node_id") nodeId: Long): ResponseEntity<Response> {
         return try {
-            val ranges = ipv6RangeService.findAllByDcId(dcId)
+            val ranges = ipv6RangeService.findAllByNodeId(nodeId)
             builder.ok().data(ranges).build()
         } catch (e: Exception) {
             builder.exception().message(e.message ?: "Failed to retrieve IPv6 ranges").build()
@@ -92,9 +92,9 @@ class IPv6RangeController(
     }
 
     @GetMapping("/active")
-    fun findActiveByDcId(@RequestParam("dc_id") dcId: Long): ResponseEntity<Response> {
+    fun findActiveByDcId(@RequestParam("node_id") nodeId: Long): ResponseEntity<Response> {
         return try {
-            val ranges = ipv6RangeService.findActiveByDcId(dcId)
+            val ranges = ipv6RangeService.findActiveByNodeId(nodeId)
             builder.ok().data(ranges).build()
         } catch (e: Exception) {
             builder.exception().message(e.message ?: "Failed to retrieve active IPv6 ranges").build()

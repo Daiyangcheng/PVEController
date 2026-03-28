@@ -7,6 +7,6 @@ interface IPv6RangeService {
     fun update(range: IPv6Range): IPv6Range
     fun delete(id: Long)
     fun findById(id: Long): IPv6Range?
-    fun findAllByDcId(dcId: Long): List<IPv6Range>
-    fun findActiveByDcId(dcId: Long): List<IPv6Range>
+    fun findAllByNodeId(nodeId: Long): List<IPv6Range>
+    fun findActiveByNodeId(nodeId: Long): List<IPv6Range>
 }

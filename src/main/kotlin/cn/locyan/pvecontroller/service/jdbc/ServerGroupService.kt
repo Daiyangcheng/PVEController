@@ -7,6 +7,6 @@ interface ServerGroupService {
     fun update(serverGroup: ServerGroup): ServerGroup
     fun delete(id: Long)
     fun findById(id: Long): ServerGroup?
-    fun findAllByDcId(dcId: Long): List<ServerGroup>
+    fun findAllByNodeId(nodeId: Long): List<ServerGroup>
     fun findByUserId(userId: Long): List<ServerGroup>
 }

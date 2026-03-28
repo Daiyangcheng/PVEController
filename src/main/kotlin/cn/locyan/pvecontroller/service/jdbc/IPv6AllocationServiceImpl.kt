@@ -57,7 +57,6 @@ class IPv6AllocationServiceImpl(
 
         val allocation = IPv6Allocation().apply {
             this.ipv6RangeId = rangeId
-            this.dcId = range.dcId
             this.assignedAddress = nextAddress
         }
         range.allocatedCount = (range.allocatedCount ?: 0L) + 1L

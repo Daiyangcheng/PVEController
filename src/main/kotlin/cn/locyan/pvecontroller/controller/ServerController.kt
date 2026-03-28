@@ -61,16 +61,15 @@ class ServerController(
         @RequestParam(value = "name", required = false) name: String? = null,
     ): ResponseEntity<Response> {
         val node = nodeService.findById(nodeId) ?: return builder.notFound().message("节点不存在").build()
-        val dcId = node.dcId ?: return builder.exception().message("该节点未配置数据中心 ID").build()
-        val dc = dataCenterService.findById(dcId) ?: return builder.notFound().message("数据中心不存在").build()
+        val dc = dataCenterService.findById(node.dcId!!) ?: return builder.notFound().message("数据中心不存在").build()
         val serverGroup = serverGroupService.findById(serverGroupId!!) ?: return builder.notFound().message("服务器组别不存在").build()
-        if (dcId != serverGroup.dcId) return builder.exception().message("服务器组不可跨数据中心使用").build()
+        if (nodeId != serverGroup.nodeId) return builder.exception().message("服务器组不可跨数据中心使用").build()
         val client = pveClient.newClient(dc.id!!) ?: return builder.exception().message("无法连接至 PVE 控制器，请检查控制台输出查看详细报错内容").build()
 
         val template = templateService.findById(templateId) ?: return builder.exception().message("不存在该模板").build()
         val templateGroupId = template.templateGroupId
         val templateGroup = templateGroupService.findById(templateGroupId!!) ?: return builder.notFound().message("该模板组不存在").build()
-        if (templateGroup.dcId != dcId) return builder.forbidden().message("模板与数据中心不匹配").build()
+        if (templateGroup.nodeId != nodeId) return builder.forbidden().message("模板与服务器节点不匹配").build()
 
         // 先分配，后更新 serverId 和 vmId
         // 分配 IPv4

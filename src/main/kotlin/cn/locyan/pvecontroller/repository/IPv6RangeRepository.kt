@@ -6,6 +6,6 @@ import org.springframework.stereotype.Repository
 
 @Repository
 interface IPv6RangeRepository : JpaRepository<IPv6Range, Long> {
-    fun findAllByDcId(dcId: Long): List<IPv6Range>
-    fun findByDcIdAndIsActiveTrue(dcId: Long): List<IPv6Range>
+    fun findAllByNodeId(nodeId: Long): List<IPv6Range>
+    fun findByNodeIdAndIsActiveTrue(nodeId: Long): List<IPv6Range>
 }

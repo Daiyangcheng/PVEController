@@ -7,6 +7,6 @@ interface TemplateGroupService {
     fun update(group: TemplateGroup): TemplateGroup
     fun delete(id: Long)
     fun findById(id: Long): TemplateGroup?
-    fun findAllByDcId(dcId: Long): List<TemplateGroup>
-    fun findByNameAndDcId(name: String, dcId: Long): TemplateGroup?
+    fun findAllByNodeId(nodeId: Long): List<TemplateGroup>
+    fun findByNameAndNodeId(name: String, nodeId: Long): TemplateGroup?
 }

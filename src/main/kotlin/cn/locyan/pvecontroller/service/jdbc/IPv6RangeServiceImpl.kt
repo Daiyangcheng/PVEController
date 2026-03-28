@@ -35,11 +35,11 @@ class IPv6RangeServiceImpl(
         return ipv6RangeRepository.findById(id).orElse(null)
     }
 
-    override fun findAllByDcId(dcId: Long): List<IPv6Range> {
-        return ipv6RangeRepository.findAllByDcId(dcId)
+    override fun findAllByNodeId(nodeId: Long): List<IPv6Range> {
+        return ipv6RangeRepository.findAllByNodeId(nodeId)
     }
 
-    override fun findActiveByDcId(dcId: Long): List<IPv6Range> {
-        return ipv6RangeRepository.findByDcIdAndIsActiveTrue(dcId)
+    override fun findActiveByNodeId(nodeId: Long): List<IPv6Range> {
+        return ipv6RangeRepository.findByNodeIdAndIsActiveTrue(nodeId)
     }
 }

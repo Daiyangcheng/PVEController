@@ -21,8 +21,8 @@ class IPv6Range {
     @Column(name = "id", nullable = false)
     var id: Long? = null
 
-    @Column(name = "dc_id", nullable = false)
-    var dcId: Long? = null
+    @Column(name = "node_id", nullable = false)
+    var nodeId: Long? = null
 
     @Column(name = "start_address", nullable = false)
     var startAddress: String? = null

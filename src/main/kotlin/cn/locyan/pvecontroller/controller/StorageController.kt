@@ -52,14 +52,14 @@ class StorageController(
     }
 
     @GetMapping
-    fun findAllByDcId(@RequestParam("dc_id") dcId: Long): ResponseEntity<Response> {
-        val storages = storageService.findAllByDcId(dcId)
+    fun findAllByDcId(@RequestParam("node_id") nodeId: Long): ResponseEntity<Response> {
+        val storages = storageService.findAllByNodeId(nodeId)
         return builder.ok().data(storages).build()
     }
 
     @GetMapping("/node")
-    fun findByNodeName(@RequestParam("node_name") nodeName: String, @RequestParam("dc_id") dcId: Long): ResponseEntity<Response> {
-        val storages = storageService.findByNodeName(nodeName, dcId)
+    fun findByNodeName(@RequestParam("node_name") nodeName: String, @RequestParam("node_id") nodeId: Long): ResponseEntity<Response> {
+        val storages = storageService.findByNodeNameAndNodeId(nodeName, nodeId)
         return builder.ok().data(storages).build()
     }
 }

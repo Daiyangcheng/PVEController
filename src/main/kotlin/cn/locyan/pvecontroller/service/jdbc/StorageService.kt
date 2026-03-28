@@ -7,6 +7,6 @@ interface StorageService {
     fun update(storage: Storage): Storage
     fun delete(id: Long)
     fun findById(id: Long): Storage?
-    fun findAllByDcId(dcId: Long): List<Storage>
-    fun findByNodeName(nodeName: String, dcId: Long): List<Storage>
+    fun findAllByNodeId(nodeId: Long): List<Storage>
+    fun findByNodeNameAndNodeId(nodeName: String, nodeId: Long): List<Storage>
 }
