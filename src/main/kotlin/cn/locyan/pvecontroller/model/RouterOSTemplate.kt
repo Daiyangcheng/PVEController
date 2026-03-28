@@ -31,6 +31,12 @@ class RouterOSTemplate {
     @Column(name = "node_id", nullable = false)
     private var nodeId: Long? = null
 
+    @Column(name = "path", nullable = false)
+    private var path: String? = null
+
+    @Column(name = "action", nullable = false)
+    private var action: String? = null
+
     @Column(name = "template", nullable = false)
     private var template: String? = null
 
