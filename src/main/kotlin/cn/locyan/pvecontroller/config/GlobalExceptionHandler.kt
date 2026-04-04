@@ -14,11 +14,11 @@ class GlobalExceptionHandler(
 
     @ExceptionHandler(UnauthorizedException::class)
     fun handleUnauthorized(e: UnauthorizedException): ResponseEntity<Response> {
-        return builder.unauthorized().message(e.message).build()
+        return builder.unauthorized().message(e.toString()).build()
     }
 
     @ExceptionHandler(Exception::class)
     fun handleGeneric(e: Exception): ResponseEntity<Response> {
-        return builder.exception().message(e.message).build()
+        return builder.exception().message(e.toString()).build()
     }
 }

@@ -12,7 +12,7 @@ class RouterOSApi {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id", nullable = false)
-    private var id: Long? = null
+    var id: Long? = null
 
     @Column(name = "name", nullable = false)
     var name: String? = null

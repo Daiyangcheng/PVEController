@@ -29,16 +29,8 @@ class ServerServiceImpl(
         return serverRepository.findById(id).orElse(null)
     }
 
-    override fun findAllByDcId(dcId: Long): List<Server> {
-        return serverRepository.findAllByDcId(dcId)
-    }
-
     override fun findByUserId(userId: Long): List<Server> {
         return serverRepository.findByUserId(userId)
-    }
-
-    override fun findByServerGroupId(groupId: Long): List<Server> {
-        return serverRepository.findByServerGroupId(groupId)
     }
 
     override fun findByTemplateId(templateId: Long): List<Server> {

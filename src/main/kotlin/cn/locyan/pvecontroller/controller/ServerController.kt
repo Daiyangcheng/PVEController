@@ -2,12 +2,12 @@ package cn.locyan.pvecontroller.controller
 
 import cn.locyan.pvecontroller.model.IPv6Allocation
 import cn.locyan.pvecontroller.model.Server
+import com.fasterxml.jackson.databind.JsonNode
 import cn.locyan.pvecontroller.service.jdbc.DataCenterService
 import cn.locyan.pvecontroller.service.jdbc.IPv4Service
 import cn.locyan.pvecontroller.service.jdbc.IPv6AllocationService
 import cn.locyan.pvecontroller.service.jdbc.IPv6RangeService
 import cn.locyan.pvecontroller.service.jdbc.NodeService
-import cn.locyan.pvecontroller.service.jdbc.ServerGroupService
 import cn.locyan.pvecontroller.service.jdbc.ServerService
 import cn.locyan.pvecontroller.service.jdbc.TemplateGroupService
 import cn.locyan.pvecontroller.service.jdbc.TemplateService
@@ -26,6 +26,7 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import java.time.LocalDateTime
+import kotlin.math.ceil
 
 @RestController
 @RequestMapping("/servers")
@@ -37,7 +38,6 @@ class ServerController(
     private val ipv6AllocationService: IPv6AllocationService,
     private val ipv6RangeService: IPv6RangeService,
     private val nodeService: NodeService,
-    private val serverGroupService: ServerGroupService,
     private val dataCenterService: DataCenterService,
     private val pveClient: PVEClient,
     private val processor: ProcessPVEResult,
@@ -62,8 +62,6 @@ class ServerController(
     ): ResponseEntity<Response> {
         val node = nodeService.findById(nodeId) ?: return builder.notFound().message("节点不存在").build()
         val dc = dataCenterService.findById(node.dcId!!) ?: return builder.notFound().message("数据中心不存在").build()
-        val serverGroup = serverGroupService.findById(serverGroupId!!) ?: return builder.notFound().message("服务器组别不存在").build()
-        if (nodeId != serverGroup.nodeId) return builder.exception().message("服务器组不可跨数据中心使用").build()
         val client = pveClient.newClient(dc.id!!) ?: return builder.exception().message("无法连接至 PVE 控制器，请检查控制台输出查看详细报错内容").build()
 
         val template = templateService.findById(templateId) ?: return builder.exception().message("不存在该模板").build()
@@ -142,8 +140,8 @@ class ServerController(
             /* citype */ null,
             /* ciupgrade */ false,
             /* ciuser */ null,
-            /* cores */ null,
-            /* cpu */ cpu.toString(),
+            /* cores */ cpu.toInt(),
+            /* cpu */ "host",
             /* cpulimit */ null,
             /* cpuunits */ null,
             /* delete */ null,
@@ -214,19 +212,37 @@ class ServerController(
         check = processor.process(cloudInitReq)
         if (check != null) return check
 
+        val vmConfigReq = client.nodes[node.name].qemu[vmId].config.vmConfig(true, null)
+        check = processor.process(vmConfigReq)
+        if (check != null) return check
+
+        val primaryDiskKey = resolvePrimaryDiskKey(vmConfigReq.data)
+        val currentDiskGb = extractDiskSizeGb(primaryDiskKey?.let { vmConfigReq.data.get(it)?.asText() })
+        val effectiveDiskGb = maxOf(disk, currentDiskGb ?: disk)
+
+        if (primaryDiskKey != null && disk > (currentDiskGb ?: 0L)) {
+            val resizeSize = if (currentDiskGb != null) {
+                "+${disk - currentDiskGb}G"
+            } else {
+                "${disk}G"
+            }
+
+            val resizeReq = client.nodes[node.name].qemu[vmId].resize.resizeVm(primaryDiskKey, resizeSize)
+            check = processor.process(resizeReq)
+            if (check != null) return check
+        }
+
         val server = Server().apply {
             this.vmId = vmId
             this.name = name ?: "server-${System.currentTimeMillis()}"
             this.nodeId = nodeId
-            this.dcId = dcId
             this.userId = userId
-            this.serverGroupId = serverGroup.id
             this.templateId = templateId
             this.ipId = ipv4?.id
             this.ipv6Id = ipv6?.id
             this.cpu = cpu
             this.memory = memory
-            this.disk = disk
+            this.disk = effectiveDiskGb
             this.status = "stopped"
             this.createdTime = LocalDateTime.now()
             this.updatedTime = LocalDateTime.now()
@@ -262,6 +278,140 @@ class ServerController(
         server.id = id
         val updated = serverService.update(server)
         return builder.ok().data(updated).build()
+    }
+
+    @PostMapping("/{id}/upgrade")
+    fun upgradeServer(
+        @PathVariable id: Long,
+        @RequestParam("cpu") cpu: Long,
+        @RequestParam("memory") memory: Long,
+        @RequestParam("disk") disk: Long,
+        @RequestParam(value = "name", required = false) name: String? = null,
+    ): ResponseEntity<Response> {
+        if (cpu <= 0 || memory <= 0 || disk <= 0) {
+            return builder.badRequest().message("CPU, memory and disk must be positive").build()
+        }
+
+        val server = serverService.findById(id) ?: return builder.exception().message("Server not found").build()
+        val node = nodeService.findById(server.nodeId!!) ?: return builder.notFound().message("Node not found").build()
+        val client = pveClient.newClient(node.dcId!!) ?: return builder.exception().message("Unable to connect to PVE").build()
+
+        val vmConfigReq = client.nodes[node.name].qemu[server.vmId].config.vmConfig(true, null)
+        var check = processor.process(vmConfigReq)
+        if (check != null) return check
+
+        val primaryDiskKey = resolvePrimaryDiskKey(vmConfigReq.data)
+        val currentDiskGb = extractDiskSizeGb(primaryDiskKey?.let { vmConfigReq.data.get(it)?.asText() }) ?: server.disk ?: 0L
+        if (disk < currentDiskGb) {
+            return builder.badRequest().message("Disk shrinking is not supported").build()
+        }
+
+        val updateReq = client.nodes[node.name].qemu[server.vmId].config.updateVmAsync(
+            /* acpi */ null,
+            /* affinity */ null,
+            /* agent */ null,
+            /* allow_ksm */ null,
+            /* amd_sev */ null,
+            /* arch */ null,
+            /* args */ null,
+            /* audio0 */ null,
+            /* autostart */ null,
+            /* background_delay */ null,
+            /* balloon */ null,
+            /* bios */ null,
+            /* boot */ null,
+            /* bootdisk */ null,
+            /* cdrom */ null,
+            /* cicustom */ null,
+            /* cipassword */ null,
+            /* citype */ null,
+            /* ciupgrade */ null,
+            /* ciuser */ null,
+            /* cores */ cpu.toInt(),
+            /* cpu */ null,
+            /* cpulimit */ null,
+            /* cpuunits */ null,
+            /* delete */ null,
+            /* description */ null,
+            /* digest */ null,
+            /* efidisk0 */ null,
+            /* force */ null,
+            /* freeze */ null,
+            /* hookscript */ null,
+            /* hostpciN */ null,
+            /* hotplug */ null,
+            /* hugepages */ null,
+            /* ideN */ null,
+            /* import_working_storage */ null,
+            /* intel_tdx */ null,
+            /* ipconfigN */ null,
+            /* ivshmem */ null,
+            /* keephugepages */ null,
+            /* keyboard */ null,
+            /* kvm */ null,
+            /* localtime */ null,
+            /* lock_ */ null,
+            /* machine */ null,
+            /* memory */ memory.toString(),
+            /* migrate_downtime */ null,
+            /* migrate_speed */ null,
+            /* name */ name?.takeIf { it.isNotBlank() },
+            /* nameserver */ null,
+            /* netN */ null,
+            /* numa */ null,
+            /* numaN */ null,
+            /* onboot */ null,
+            /* ostype */ null,
+            /* parallelN */ null,
+            /* protection */ null,
+            /* reboot */ null,
+            /* revert */ null,
+            /* rng0 */ null,
+            /* sataN */ null,
+            /* scsiN */ null,
+            /* scsihw */ null,
+            /* searchdomain */ null,
+            /* serialN */ null,
+            /* shares */ null,
+            /* skiplock */ null,
+            /* smbios1 */ null,
+            /* smp */ null,
+            /* sockets */ null,
+            /* spice_enhancements */ null,
+            /* sshkeys */ null,
+            /* startdate */ null,
+            /* startup */ null,
+            /* tablet */ null,
+            /* tags */ null,
+            /* tdf */ null,
+            /* template */ null,
+            /* tpmstate0 */ null,
+            /* unusedN */ null,
+            /* usbN */ null,
+            /* vcpus */ null,
+            /* vga */ null,
+            /* virtioN */ null,
+            /* virtiofsN */ null,
+            /* vmgenid */ null,
+            /* vmstatestorage */ null,
+            /* watchdog */ null
+        )
+        check = processor.process(updateReq)
+        if (check != null) return check
+
+        if (disk > currentDiskGb) {
+            val diskKey = primaryDiskKey ?: return builder.exception().message("Primary disk not found").build()
+            val resizeReq = client.nodes[node.name].qemu[server.vmId].resize.resizeVm(diskKey, "+${disk - currentDiskGb}G")
+            check = processor.process(resizeReq)
+            if (check != null) return check
+        }
+
+        server.cpu = cpu
+        server.memory = memory
+        server.disk = disk
+        name?.takeIf { it.isNotBlank() }?.let { server.name = it }
+        val updatedServer = serverService.update(server)
+        return builder.ok().data(updatedServer).message("Server upgraded").build()
     }
 
     @DeleteMapping("/{id}")
@@ -301,21 +451,9 @@ class ServerController(
         }
     }
 
-    @GetMapping
-    fun findAllByDcId(@RequestParam("dc_id") dcId: Long): ResponseEntity<Response> {
-        val servers = serverService.findAllByDcId(dcId)
-        return builder.ok().data(servers).build()
-    }
-
-    @GetMapping("/user")
+    @GetMapping()
     fun findByUserId(@RequestParam("user_id") userId: Long): ResponseEntity<Response> {
         val servers = serverService.findByUserId(userId)
-        return builder.ok().data(servers).build()
-    }
-
-    @GetMapping("/group")
-    fun findByServerGroupId(@RequestParam("group_id") groupId: Long): ResponseEntity<Response> {
-        val servers = serverService.findByServerGroupId(groupId)
         return builder.ok().data(servers).build()
     }
 
@@ -325,7 +463,7 @@ class ServerController(
     ): ResponseEntity<Response> {
         val server = serverService.findById(id) ?: return builder.exception().message("Server not found").build()
         val node = nodeService.findById(server.nodeId!!) ?: return builder.notFound().message("节点不存在!").build()
-        val client = pveClient.newClient(server.dcId!!) ?: return builder.exception().message("无法连接至 PVE 控制器，请检查控制台输出查看详细报错内容").build()
+        val client = pveClient.newClient(node.dcId!!) ?: return builder.exception().message("无法连接至 PVE 控制器，请检查控制台输出查看详细报错内容").build()
         val startReq = client.nodes[node.name].qemu[server.vmId].status.start.vmStart()
         val check = processor.process(startReq)
         if (check != null) return check
@@ -341,7 +479,7 @@ class ServerController(
     ): ResponseEntity<Response> {
         val server = serverService.findById(id) ?: return builder.exception().message("Server not found").build()
         val node = nodeService.findById(server.nodeId!!) ?: return builder.notFound().message("节点不存在!").build()
-        val client = pveClient.newClient(server.dcId!!) ?: return builder.exception().message("无法连接至 PVE 控制器，请检查控制台输出查看详细报错内容").build()
+        val client = pveClient.newClient(node.dcId!!) ?: return builder.exception().message("无法连接至 PVE 控制器，请检查控制台输出查看详细报错内容").build()
         val startReq = client.nodes[node.name].qemu[server.vmId].status.stop.vmStop()
         val check = processor.process(startReq)
         if (check != null) return check
@@ -357,11 +495,47 @@ class ServerController(
     ): ResponseEntity<Response> {
         val server = serverService.findById(id) ?: return builder.exception().message("Server not found").build()
         val node = nodeService.findById(server.nodeId!!) ?: return builder.notFound().message("节点不存在!").build()
-        val client = pveClient.newClient(server.dcId!!) ?: return builder.exception().message("无法连接至 PVE 控制器，请检查控制台输出查看详细报错内容").build()
+        val client = pveClient.newClient(node.dcId!!) ?: return builder.exception().message("无法连接至 PVE 控制器，请检查控制台输出查看详细报错内容").build()
         val startReq = client.nodes[node.name].qemu[server.vmId].status.reboot.vmReboot()
         val check = processor.process(startReq)
         if (check != null) return check
 
         return builder.ok().data(server).message("Server rebooted").build()
+    }
+
+    private fun resolvePrimaryDiskKey(vmConfig: JsonNode): String? {
+        val bootDisk = vmConfig.get("bootdisk")?.asText()?.takeIf { it.isNotBlank() }
+        if (bootDisk != null && vmConfig.has(bootDisk)) {
+            return bootDisk
+        }
+
+        val candidates = buildList {
+            addAll((0..30).map { "scsi$it" })
+            addAll((0..15).map { "virtio$it" })
+            addAll((0..5).map { "sata$it" })
+            addAll((0..3).map { "ide$it" })
+        }
+
+        return candidates.firstOrNull { vmConfig.has(it) } ?: bootDisk
+    }
+
+    private fun extractDiskSizeGb(diskConfig: String?): Long? {
+        if (diskConfig.isNullOrBlank()) {
+            return null
+        }
+
+        val match = Regex("size=(\\d+(?:\\.\\d+)?)([KMGT])", RegexOption.IGNORE_CASE).find(diskConfig) ?: return null
+        val value = match.groupValues[1].toDoubleOrNull() ?: return null
+        val unit = match.groupValues[2].uppercase()
+
+        val sizeInGb = when (unit) {
+            "T" -> value * 1024
+            "G" -> value
+            "M" -> value / 1024
+            "K" -> value / (1024 * 1024)
+            else -> return null
+        }
+
+        return ceil(sizeInGb).toLong()
     }
 }

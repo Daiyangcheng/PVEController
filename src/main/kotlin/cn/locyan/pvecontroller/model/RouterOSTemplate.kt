@@ -17,29 +17,29 @@ class RouterOSTemplate {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id", nullable = false)
-    private var id: Long? = null
+    var id: Long? = null
 
     @Column(name = "template_name", nullable = false)
-    private var templateName: String? = null
+    var templateName: String? = null
 
     /*
     * 哪个 API 可以用
     */
     @Column(name = "api_id", nullable = false)
-    private var apiId: Long? = null
+    var apiId: Long? = null
 
     @Column(name = "node_id", nullable = false)
-    private var nodeId: Long? = null
+    var nodeId: Long? = null
 
     @Column(name = "path", nullable = false)
-    private var path: String? = null
+    var path: String? = null
 
     @Column(name = "action", nullable = false)
-    private var action: String? = null
+    var action: String? = null
 
     @Column(name = "template", nullable = false)
-    private var template: String? = null
+    var template: String? = null
 
     @Column(name = "values", nullable = false)
-    private var values: String? = null
+    var values: String? = null
 }

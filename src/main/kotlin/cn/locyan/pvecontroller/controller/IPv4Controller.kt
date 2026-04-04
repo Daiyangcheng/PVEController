@@ -30,7 +30,6 @@ class IPv4Controller(
 
     @PostMapping("/batch")
     fun createBatch(
-        @RequestParam("dc_id") dcId: Long,
         @RequestParam("node_id") nodeId: Long,
         @RequestParam("start_ip") startIp: String,
         @RequestParam("count") count: Int,
@@ -98,5 +97,25 @@ class IPv4Controller(
     fun deallocateIP(@PathVariable id: Long): ResponseEntity<Response> {
         ipv4Service.deallocateIP(id)
         return builder.ok().message("IPv4 deallocated successfully").build()
+    }
+
+    @GetMapping("/list/{nodeId}")
+    fun findAll(@PathVariable nodeId: Long): ResponseEntity<Response> {
+        val ipv4 = ipv4Service.findAllByNodeId(nodeId)
+        if (!ipv4.isEmpty()) {
+            return builder.ok().data(ipv4).build()
+        } else {
+            return builder.exception().message("IPv4 not found").build()
+        }
+    }
+
+    @GetMapping("/list/{nodeId}/available")
+    fun findAvailable(@PathVariable nodeId: Long): ResponseEntity<Response> {
+        val ipv4 = ipv4Service.findAvailableByNodeId(nodeId)
+        if (!ipv4.isEmpty()) {
+            return builder.ok().data(ipv4).build()
+        } else {
+            return builder.exception().message("IPv4 not found").build()
+        }
     }
 }
