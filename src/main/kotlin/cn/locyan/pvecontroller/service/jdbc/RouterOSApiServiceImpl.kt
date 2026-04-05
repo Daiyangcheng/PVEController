@@ -37,16 +37,26 @@ class RouterOSApiServiceImpl(
     ): List<Map<String, String>>? {
         val ros = findById(id) ?: return null
         val conn = openConnection(ros) ?: return null
-        conn.login(ros.user, ros.password)
-        if (!conn.isConnected) return null
-        val command = if (!params.isNullOrEmpty()) {
-            "${path}/${action} ${buildCommandString(params)}"
-        } else {
-            "${path}/${action}"
+        return try {
+            conn.login(ros.user, ros.password)
+            if (!conn.isConnected) {
+                null
+            } else {
+                val command = if (!params.isNullOrEmpty()) {
+                    "${path}/${action} ${buildCommandString(params)}"
+                } else {
+                    "${path}/${action}"
+                }
+                conn.execute(command)
+            }
+        } catch (_: Exception) {
+            null
+        } finally {
+            try {
+                conn.close()
+            } catch (_: Exception) {
+            }
         }
-        val list: List<Map<String, String>> = conn.execute(command)
-        conn.close()
-        return list
     }
 
     // param 是 String
@@ -58,16 +68,26 @@ class RouterOSApiServiceImpl(
     ): List<Map<String, String>>? {
         val ros = findById(id) ?: return null
         val conn = openConnection(ros) ?: return null
-        conn.login(ros.user, ros.password)
-        if (!conn.isConnected) return null
-        val command = if (params.isNotEmpty()) {
-            "${path}/${action} $params"
-        } else {
-            "${path}/${action}"
+        return try {
+            conn.login(ros.user, ros.password)
+            if (!conn.isConnected) {
+                null
+            } else {
+                val command = if (params.isNotEmpty()) {
+                    "${path}/${action} $params"
+                } else {
+                    "${path}/${action}"
+                }
+                conn.execute(command)
+            }
+        } catch (_: Exception) {
+            null
+        } finally {
+            try {
+                conn.close()
+            } catch (_: Exception) {
+            }
         }
-        val list: List<Map<String, String>> = conn.execute(command)
-        conn.close()
-        return list
     }
 
     override fun testConn(
@@ -77,13 +97,22 @@ class RouterOSApiServiceImpl(
         user: String,
         password: String
     ): Boolean {
-        val socketFactory = getSocketFactory(ssl)
-        val targetPort = resolvePort(port, ssl)
-        val conn = ApiConnection.connect(socketFactory, host, targetPort, ApiConnection.DEFAULT_CONNECTION_TIMEOUT)
-        conn.login(user, password)
-        val status = conn.isConnected
-        conn.close()
-        return status
+        return try {
+            val socketFactory = getSocketFactory(ssl)
+            val targetPort = resolvePort(port, ssl)
+            val conn = ApiConnection.connect(socketFactory, host, targetPort, ApiConnection.DEFAULT_CONNECTION_TIMEOUT)
+            try {
+                conn.login(user, password)
+                conn.isConnected
+            } finally {
+                try {
+                    conn.close()
+                } catch (_: Exception) {
+                }
+            }
+        } catch (_: Exception) {
+            false
+        }
     }
 
     fun buildCommandString(paramsList: List<Map<String, String>>): String {
@@ -100,10 +129,14 @@ class RouterOSApiServiceImpl(
     }
 
     private fun openConnection(ros: RouterOSApi): ApiConnection? {
-        val host = ros.host ?: return null
-        val socketFactory = getSocketFactory(ros.ssl == true)
-        val targetPort = resolvePort(ros.port, ros.ssl == true)
-        return ApiConnection.connect(socketFactory, host, targetPort, ApiConnection.DEFAULT_CONNECTION_TIMEOUT)
+        return try {
+            val host = ros.host ?: return null
+            val socketFactory = getSocketFactory(ros.ssl == true)
+            val targetPort = resolvePort(ros.port, ros.ssl == true)
+            ApiConnection.connect(socketFactory, host, targetPort, ApiConnection.DEFAULT_CONNECTION_TIMEOUT)
+        } catch (_: Exception) {
+            null
+        }
     }
 
     private fun getSocketFactory(ssl: Boolean): SocketFactory {

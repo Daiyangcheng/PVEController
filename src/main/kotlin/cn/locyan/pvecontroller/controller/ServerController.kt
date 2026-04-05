@@ -56,12 +56,20 @@ class ServerController(
         @RequestParam(value = "sshkeys", required = false) sshKeys: String? = null,
         @RequestParam("disk") disk: Long,
         @RequestParam(value = "ip_id", required = false) ipId: Long? = null,
+        @RequestParam(value = "auto_allocate_ipv4", required = false, defaultValue = "false") autoAllocateIpv4: Boolean,
         @RequestParam(value = "ipv6_range_id", required = false) ipv6RangeId: Long? = null,
+        @RequestParam(value = "auto_allocate_ipv6", required = false, defaultValue = "false") autoAllocateIpv6: Boolean,
         @RequestParam(value = "server_group_id", required = false) serverGroupId: Long? = null,
         @RequestParam(value = "name", required = false) name: String? = null,
     ): ResponseEntity<Response> {
         if (cpu <= 0 || memory <= 0 || disk <= 0) {
             return builder.badRequest().message("CPU, memory and disk must be positive").build()
+        }
+        if (ipId != null && autoAllocateIpv4) {
+            return builder.badRequest().message("IPv4 cannot be both fixed and auto allocated").build()
+        }
+        if (ipv6RangeId != null && autoAllocateIpv6) {
+            return builder.badRequest().message("IPv6 cannot be both fixed and auto allocated").build()
         }
 
         val node = nodeService.findById(nodeId) ?: return builder.notFound().message("Node not found").build()
@@ -82,7 +90,7 @@ class ServerController(
             return builder.forbidden().message("Template does not belong to the selected node").build()
         }
 
-        val ipv4 = if (ipId != null) {
+        val requestedIpv4 = if (ipId != null) {
             val address = ipv4Service.findById(ipId) ?: return builder.exception().message("IPv4 not found").build()
             if (address.nodeId != nodeId) {
                 return builder.forbidden().message("The selected IPv4 does not belong to the requested node").build()
@@ -105,24 +113,48 @@ class ServerController(
                 return builder.badRequest().message("The selected IPv6 range is not active").build()
             }
             range
-        } else {
-            null
-        }
-
-        val ipv6 = if (ipv6Range != null) {
-            ipv6AllocationService.allocateIPv6(ipv6Range.id!!)
-                ?: return builder.exception().message("Failed to allocate IPv6").build()
+        } else if (autoAllocateIpv6) {
+            ipv6RangeService.findActiveByNodeId(nodeId).firstOrNull()
+                ?: return builder.exception().message("No active IPv6 range is available on the selected node").build()
         } else {
             null
         }
 
         val vmIdReq = client.cluster.nextid.nextid()
         var check = processor.process(vmIdReq)
-        if (check != null) {
-            ipv6?.id?.let(ipv6AllocationService::deallocateIPv6)
-            return check
-        }
+        if (check != null) return check
         val vmId = vmIdReq.data.asLong()
+
+        val ipv4 = when {
+            autoAllocateIpv4 -> ipv4Service.allocateIP(nodeId, vmId)
+                ?: return builder.exception().message("No available IPv4 address on the selected node").build()
+
+            requestedIpv4 != null -> {
+                val address = ipv4Service.findById(requestedIpv4.id!!)
+                    ?: return builder.exception().message("IPv4 not found").build()
+                if (address.nodeId != nodeId) {
+                    return builder.forbidden().message("The selected IPv4 does not belong to the requested node").build()
+                }
+                if (address.isAllocated == true) {
+                    return builder.exception().message("The selected IPv4 is already allocated").build()
+                }
+                address.isAllocated = true
+                address.vmId = vmId
+                ipv4Service.update(address)
+            }
+
+            else -> null
+        }
+
+        val ipv6 = if (ipv6Range != null) {
+            ipv6AllocationService.allocateIPv6(ipv6Range.id!!)
+                ?: run {
+                    ipv4?.id?.let(ipv4Service::deallocateIP)
+                    return builder.exception().message("Failed to allocate IPv6").build()
+                }
+        } else {
+            null
+        }
 
         val cloneReq = client.nodes[nodeName].qemu[template.templateId].clone.cloneVm(
             vmId.toInt(),
@@ -138,7 +170,7 @@ class ServerController(
         )
         check = processor.process(cloneReq)
         if (check != null) {
-            ipv6?.id?.let(ipv6AllocationService::deallocateIPv6)
+            cleanupFailedProvision(nodeId, nodeName, vmId, ipv4?.id, ipv6?.id)
             return check
         }
 
@@ -236,14 +268,14 @@ class ServerController(
         )
         check = processor.process(cloudInitReq)
         if (check != null) {
-            cleanupFailedProvision(nodeId, nodeName, vmId, ipv6?.id)
+            cleanupFailedProvision(nodeId, nodeName, vmId, ipv4?.id, ipv6?.id)
             return check
         }
 
         val vmConfigReq = client.nodes[nodeName].qemu[vmId].config.vmConfig(true, null)
         check = processor.process(vmConfigReq)
         if (check != null) {
-            cleanupFailedProvision(nodeId, nodeName, vmId, ipv6?.id)
+            cleanupFailedProvision(nodeId, nodeName, vmId, ipv4?.id, ipv6?.id)
             return check
         }
 
@@ -261,7 +293,7 @@ class ServerController(
             val resizeReq = client.nodes[nodeName].qemu[vmId].resize.resizeVm(primaryDiskKey, resizeSize)
             check = processor.process(resizeReq)
             if (check != null) {
-                cleanupFailedProvision(nodeId, nodeName, vmId, ipv6?.id)
+                cleanupFailedProvision(nodeId, nodeName, vmId, ipv4?.id, ipv6?.id)
                 return check
             }
         }
@@ -291,8 +323,6 @@ class ServerController(
             if (ipv4?.id != null) {
                 val allocatedIpv4 = ipv4Service.findById(ipv4.id!!)
                 if (allocatedIpv4 != null) {
-                    allocatedIpv4.isAllocated = true
-                    allocatedIpv4.vmId = vmId
                     allocatedIpv4.serverId = createdServer.id
                     ipv4Service.update(allocatedIpv4)
                 }
@@ -589,13 +619,19 @@ class ServerController(
         }
     }
 
-    private fun cleanupFailedProvision(nodeId: Long, nodeName: String, vmId: Long, ipv6Id: Long?) {
+    private fun cleanupFailedProvision(nodeId: Long, nodeName: String, vmId: Long, ipv4Id: Long?, ipv6Id: Long?) {
         try {
             val node = nodeService.findById(nodeId) ?: return
             val client = pveClient.newClient(node.dcId ?: return) ?: return
             client.nodes[nodeName].qemu[vmId].destroyVm()
         } catch (_: Exception) {
         } finally {
+            ipv4Id?.let {
+                try {
+                    ipv4Service.deallocateIP(it)
+                } catch (_: Exception) {
+                }
+            }
             ipv6Id?.let {
                 try {
                     ipv6AllocationService.deallocateIPv6(it)
@@ -620,14 +656,7 @@ class ServerController(
             }
         }
 
-        ipv4Id?.let {
-            try {
-                ipv4Service.deallocateIP(it)
-            } catch (_: Exception) {
-            }
-        }
-
-        cleanupFailedProvision(nodeId, nodeName, vmId, ipv6Id)
+        cleanupFailedProvision(nodeId, nodeName, vmId, ipv4Id, ipv6Id)
     }
 
     private fun extractDiskSizeGb(diskConfig: String?): Long? {

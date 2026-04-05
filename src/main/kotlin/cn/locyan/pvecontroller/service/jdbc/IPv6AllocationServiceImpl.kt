@@ -44,7 +44,7 @@ class IPv6AllocationServiceImpl(
 
     @Transactional
     override fun allocateIPv6(rangeId: Long): IPv6Allocation? {
-        val range = ipv6RangeRepository.findById(rangeId).orElse(null) ?: return null
+        val range = ipv6RangeRepository.findByIdForUpdate(rangeId) ?: return null
         if (range.isActive != true) {
             return null
         }
