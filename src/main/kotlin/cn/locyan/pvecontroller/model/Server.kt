@@ -26,11 +26,17 @@ class Server {
     @Column(name = "name", nullable = false)
     var name: String? = null
 
-    @Column(name = "node_is", nullable = false)
+    @Column(name = "node_id", nullable = false)
     var nodeId: Long? = null
+
+    @Column(name = "dc_id")
+    var dcId: Long? = null
 
     @Column(name = "user_id", nullable = false)
     var userId: Long? = null
+
+    @Column(name = "server_group_id")
+    var serverGroupId: Long? = null
 
     @Column(name = "template_id", nullable = false)
     var templateId: Long? = null

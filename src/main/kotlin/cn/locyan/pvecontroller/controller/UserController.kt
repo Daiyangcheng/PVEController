@@ -84,6 +84,7 @@ class UserController(
         @RequestParam("email") email: String,
         @RequestHeader("User-Agent") ua: String,
     ): ResponseEntity<Response> {
+        val normalizedEmail = email.trim().lowercase()
         if (password != confirmPassword) return builder.badRequest()
             .message("两次输入的密码不一致")
             .build()
@@ -91,14 +92,14 @@ class UserController(
         if (user != null) return builder.forbidden()
             .message("该用户已存在")
             .build()
-        user = userService.findByEmail(email)
+        user = userService.findByEmailIgnoreCase(normalizedEmail)
         if (user != null) return builder.forbidden()
             .message("该邮箱已存在")
             .build()
         user = User()
         user.apply {
             this.username = username
-            this.email = email
+            this.email = normalizedEmail
             this.password = passwordEncoder.encode(password)
             this.regTime = LocalDateTime.now()
             this.updateTime = LocalDateTime.now()
@@ -120,7 +121,7 @@ class UserController(
             return builder.badRequest().message("Email cannot be empty").build()
         }
 
-        val existingUser = userService.findByEmail(normalizedEmail)
+        val existingUser = userService.findByEmailIgnoreCase(normalizedEmail)
         if (existingUser != null) {
             return builder.ok()
                 .message("User already synced")

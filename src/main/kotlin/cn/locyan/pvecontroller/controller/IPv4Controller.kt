@@ -84,7 +84,7 @@ class IPv4Controller(
     fun allocateIP(
         @RequestParam("node_id") nodeId: Long,
         @RequestParam("vm_id") vmId: Long
-        ): ResponseEntity<Response> {
+    ): ResponseEntity<Response> {
         val ipv4 = ipv4Service.allocateIP(nodeId, vmId)
         return if (ipv4 != null) {
             builder.ok().data(ipv4).build()
@@ -102,20 +102,12 @@ class IPv4Controller(
     @GetMapping("/list/{nodeId}")
     fun findAll(@PathVariable nodeId: Long): ResponseEntity<Response> {
         val ipv4 = ipv4Service.findAllByNodeId(nodeId)
-        if (!ipv4.isEmpty()) {
-            return builder.ok().data(ipv4).build()
-        } else {
-            return builder.exception().message("IPv4 not found").build()
-        }
+        return builder.ok().data(ipv4).build()
     }
 
     @GetMapping("/list/{nodeId}/available")
     fun findAvailable(@PathVariable nodeId: Long): ResponseEntity<Response> {
         val ipv4 = ipv4Service.findAvailableByNodeId(nodeId)
-        if (!ipv4.isEmpty()) {
-            return builder.ok().data(ipv4).build()
-        } else {
-            return builder.exception().message("IPv4 not found").build()
-        }
+        return builder.ok().data(ipv4).build()
     }
 }

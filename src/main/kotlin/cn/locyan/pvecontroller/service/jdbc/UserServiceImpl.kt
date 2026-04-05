@@ -22,6 +22,10 @@ class UserServiceImpl(
         return userRepository.findByEmail(email).orElse(null)
     }
 
+    override fun findByEmailIgnoreCase(email: String): User? {
+        return userRepository.findByEmailIgnoreCase(email).orElse(null)
+    }
+
     override fun update(user: User): User {
         return userRepository.save(user)
     }

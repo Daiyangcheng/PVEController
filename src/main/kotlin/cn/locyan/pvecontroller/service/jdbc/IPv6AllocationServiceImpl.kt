@@ -58,6 +58,8 @@ class IPv6AllocationServiceImpl(
         val allocation = IPv6Allocation().apply {
             this.ipv6RangeId = rangeId
             this.assignedAddress = nextAddress
+            this.isAllocated = true
+            this.allocationMethod = "auto"
         }
         range.allocatedCount = (range.allocatedCount ?: 0L) + 1L
         ipv6RangeRepository.save(range)
@@ -67,7 +69,7 @@ class IPv6AllocationServiceImpl(
     override fun deallocateIPv6(ipv6Id: Long) {
         val allocation = findById(ipv6Id) ?: return
         delete(ipv6Id)
-        
+
         val range = ipv6RangeRepository.findById(allocation.ipv6RangeId ?: return).orElse(null) ?: return
         range.allocatedCount = maxOf(0L, (range.allocatedCount ?: 0L) - 1L)
         ipv6RangeRepository.save(range)

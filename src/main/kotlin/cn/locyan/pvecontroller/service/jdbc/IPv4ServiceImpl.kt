@@ -9,7 +9,7 @@ import java.time.LocalDateTime
 class IPv4ServiceImpl(
     private val ipv4Repository: IPv4Repository
 ) : IPv4Service {
-    
+
     override fun create(ipv4: IPv4): IPv4 {
         ipv4.createdTime = LocalDateTime.now()
         ipv4.updatedTime = LocalDateTime.now()
@@ -55,6 +55,7 @@ class IPv4ServiceImpl(
         if (ip != null) {
             ip.isAllocated = false
             ip.vmId = null
+            ip.serverId = null
             update(ip)
         }
     }
