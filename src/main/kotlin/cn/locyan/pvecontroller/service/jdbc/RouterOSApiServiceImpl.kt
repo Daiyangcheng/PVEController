@@ -4,6 +4,8 @@ import cn.locyan.pvecontroller.model.RouterOSApi
 import cn.locyan.pvecontroller.repository.RouterOSApiRepository
 import me.legrange.mikrotik.ApiConnection
 import org.springframework.stereotype.Service
+import javax.net.SocketFactory
+import javax.net.ssl.SSLSocketFactory
 
 @Service
 class RouterOSApiServiceImpl(
@@ -34,7 +36,7 @@ class RouterOSApiServiceImpl(
         params: List<Map<String, String>>?
     ): List<Map<String, String>>? {
         val ros = findById(id) ?: return null
-        val conn = ApiConnection.connect(ros.host)
+        val conn = openConnection(ros) ?: return null
         conn.login(ros.user, ros.password)
         if (!conn.isConnected) return null
         val command = if (!params.isNullOrEmpty()) {
@@ -55,7 +57,7 @@ class RouterOSApiServiceImpl(
         params: String
     ): List<Map<String, String>>? {
         val ros = findById(id) ?: return null
-        val conn = ApiConnection.connect(ros.host)
+        val conn = openConnection(ros) ?: return null
         conn.login(ros.user, ros.password)
         if (!conn.isConnected) return null
         val command = if (params.isNotEmpty()) {
@@ -75,7 +77,9 @@ class RouterOSApiServiceImpl(
         user: String,
         password: String
     ): Boolean {
-        val conn = ApiConnection.connect(host)
+        val socketFactory = getSocketFactory(ssl)
+        val targetPort = resolvePort(port, ssl)
+        val conn = ApiConnection.connect(socketFactory, host, targetPort, ApiConnection.DEFAULT_CONNECTION_TIMEOUT)
         conn.login(user, password)
         val status = conn.isConnected
         conn.close()
@@ -92,6 +96,29 @@ class RouterOSApiServiceImpl(
                 }
                 "$key=$formattedValue"
             }
+        }
+    }
+
+    private fun openConnection(ros: RouterOSApi): ApiConnection? {
+        val host = ros.host ?: return null
+        val socketFactory = getSocketFactory(ros.ssl == true)
+        val targetPort = resolvePort(ros.port, ros.ssl == true)
+        return ApiConnection.connect(socketFactory, host, targetPort, ApiConnection.DEFAULT_CONNECTION_TIMEOUT)
+    }
+
+    private fun getSocketFactory(ssl: Boolean): SocketFactory {
+        return if (ssl) {
+            SSLSocketFactory.getDefault()
+        } else {
+            SocketFactory.getDefault()
+        }
+    }
+
+    private fun resolvePort(port: Int?, ssl: Boolean): Int {
+        return when {
+            port != null && port > 0 -> port
+            ssl -> ApiConnection.DEFAULT_TLS_PORT
+            else -> ApiConnection.DEFAULT_PORT
         }
     }
 }

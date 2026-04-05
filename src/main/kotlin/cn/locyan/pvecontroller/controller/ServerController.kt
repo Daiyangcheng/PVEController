@@ -71,7 +71,6 @@ class ServerController(
         val client = pveClient.newClient(dc.id!!) ?: return builder.exception().message("Unable to connect to PVE").build()
         val normalizedName = name?.trim()?.takeIf { it.isNotEmpty() } ?: "server-${System.currentTimeMillis()}"
         val normalizedSshKeys = sshKeys?.trim().orEmpty()
-        serverGroupId?.let { }
 
         val template = templateService.findById(templateId)
             ?: return builder.exception().message("Template not found").build()
@@ -267,47 +266,53 @@ class ServerController(
             }
         }
 
-        val createdServer = serverService.create(
-            Server().apply {
-                this.vmId = vmId
-                this.name = normalizedName
-                this.nodeId = nodeId
-                this.dcId = dcId
-                this.userId = userId
-                this.serverGroupId = serverGroupId
-                this.templateId = templateId
-                this.ipId = ipv4?.id
-                this.ipv6Id = ipv6?.id
-                this.cpu = cpu
-                this.memory = memory
-                this.disk = effectiveDiskGb
-                this.status = "stopped"
-                this.createdTime = LocalDateTime.now()
-                this.updatedTime = LocalDateTime.now()
-            }
-        )
+        var createdServer: Server? = null
+        try {
+            createdServer = serverService.create(
+                Server().apply {
+                    this.vmId = vmId
+                    this.name = normalizedName
+                    this.nodeId = nodeId
+                    this.dcId = dcId
+                    this.userId = userId
+                    this.serverGroupId = serverGroupId
+                    this.templateId = templateId
+                    this.ipId = ipv4?.id
+                    this.ipv6Id = ipv6?.id
+                    this.cpu = cpu
+                    this.memory = memory
+                    this.disk = effectiveDiskGb
+                    this.status = "stopped"
+                    this.createdTime = LocalDateTime.now()
+                    this.updatedTime = LocalDateTime.now()
+                }
+            )
 
-        if (ipv4?.id != null) {
-            val allocatedIpv4 = ipv4Service.findById(ipv4.id!!)
-            if (allocatedIpv4 != null) {
-                allocatedIpv4.isAllocated = true
-                allocatedIpv4.vmId = vmId
-                allocatedIpv4.serverId = createdServer.id
-                ipv4Service.update(allocatedIpv4)
+            if (ipv4?.id != null) {
+                val allocatedIpv4 = ipv4Service.findById(ipv4.id!!)
+                if (allocatedIpv4 != null) {
+                    allocatedIpv4.isAllocated = true
+                    allocatedIpv4.vmId = vmId
+                    allocatedIpv4.serverId = createdServer.id
+                    ipv4Service.update(allocatedIpv4)
+                }
             }
+
+            if (ipv6?.id != null) {
+                val allocatedIpv6 = ipv6AllocationService.findById(ipv6.id!!)
+                if (allocatedIpv6 != null) {
+                    allocatedIpv6.isAllocated = true
+                    allocatedIpv6.serverId = createdServer.id
+                    allocatedIpv6.vmId = vmId
+                    ipv6AllocationService.update(allocatedIpv6)
+                }
+            }
+
+            return builder.ok().data(createdServer).message("Server created successfully").build()
+        } catch (exception: Exception) {
+            rollbackProvisionedState(createdServer, ipv4?.id, ipv6?.id, nodeId, nodeName, vmId)
+            return builder.exception().message("Failed to persist provisioned server: ${exception.message}").build()
         }
-
-        if (ipv6?.id != null) {
-            val allocatedIpv6 = ipv6AllocationService.findById(ipv6.id!!)
-            if (allocatedIpv6 != null) {
-                allocatedIpv6.isAllocated = true
-                allocatedIpv6.serverId = createdServer.id
-                allocatedIpv6.vmId = vmId
-                ipv6AllocationService.update(allocatedIpv6)
-            }
-        }
-
-        return builder.ok().data(createdServer).message("Server created successfully").build()
     }
 
     @PutMapping("/{id}")
@@ -455,13 +460,17 @@ class ServerController(
     @DeleteMapping("/{id}")
     fun deleteServer(
         @PathVariable id: Long,
-        @RequestParam("dc_id") dcId: Long
+        @RequestParam("dc_id", required = false) dcId: Long? = null
     ): ResponseEntity<Response> {
         val server = serverService.findById(id) ?: return builder.exception().message("Server not found").build()
         val node = nodeService.findById(server.nodeId!!) ?: return builder.notFound().message("Node not found").build()
         val nodeName = node.name ?: return builder.notFound().message("Node name is missing").build()
-        dataCenterService.findById(dcId) ?: return builder.notFound().message("Datacenter not found").build()
-        val client = pveClient.newClient(dcId) ?: return builder.exception().message("Unable to connect to PVE").build()
+        val resolvedDcId = node.dcId ?: return builder.notFound().message("Datacenter not found").build()
+        if (dcId != null && dcId != resolvedDcId) {
+            return builder.badRequest().message("The provided datacenter does not match the server node").build()
+        }
+        dataCenterService.findById(resolvedDcId) ?: return builder.notFound().message("Datacenter not found").build()
+        val client = pveClient.newClient(resolvedDcId) ?: return builder.exception().message("Unable to connect to PVE").build()
 
         val deleteReq = client.nodes[nodeName].qemu[server.vmId].destroyVm()
         val check = processor.process(deleteReq)
@@ -594,6 +603,31 @@ class ServerController(
                 }
             }
         }
+    }
+
+    private fun rollbackProvisionedState(
+        createdServer: Server?,
+        ipv4Id: Long?,
+        ipv6Id: Long?,
+        nodeId: Long,
+        nodeName: String,
+        vmId: Long
+    ) {
+        createdServer?.let {
+            try {
+                serverService.delete(it)
+            } catch (_: Exception) {
+            }
+        }
+
+        ipv4Id?.let {
+            try {
+                ipv4Service.deallocateIP(it)
+            } catch (_: Exception) {
+            }
+        }
+
+        cleanupFailedProvision(nodeId, nodeName, vmId, ipv6Id)
     }
 
     private fun extractDiskSizeGb(diskConfig: String?): Long? {

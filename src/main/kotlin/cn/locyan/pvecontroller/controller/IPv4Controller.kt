@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
+import java.net.InetAddress
 
 @RestController
 @RequestMapping("/ipv4s")
@@ -36,12 +37,28 @@ class IPv4Controller(
         @RequestParam("gateway") gateway: String,
         @RequestParam("netmask") netmask: String
     ): ResponseEntity<Response> {
+        if (count <= 0) {
+            return builder.badRequest().message("Count must be greater than 0").build()
+        }
+
+        val startOctets = parseIpv4Octets(startIp) ?: return builder.badRequest().message("Invalid start IPv4 address").build()
+        if (parseIpv4Octets(gateway) == null) {
+            return builder.badRequest().message("Invalid IPv4 gateway").build()
+        }
+        if (!isValidNetmask(netmask)) {
+            return builder.badRequest().message("Invalid IPv4 netmask").build()
+        }
+
+        val lastOctet = startOctets[3]
+        if (lastOctet + count - 1 > 255) {
+            return builder.badRequest().message("The requested IPv4 range exceeds the current /24 boundary").build()
+        }
+
         val ipv4List = mutableListOf<IPv4>()
-        val startParts = startIp.split(".")
-        var lastOctet = startParts[3].toInt()
+        var currentOctet = lastOctet
 
         repeat(count) {
-            val ipAddress = "${startParts[0]}.${startParts[1]}.${startParts[2]}.$lastOctet"
+            val ipAddress = "${startOctets[0]}.${startOctets[1]}.${startOctets[2]}.$currentOctet"
             val ipv4 = IPv4()
             ipv4.nodeId = nodeId
             ipv4.ipAddress = ipAddress
@@ -49,7 +66,7 @@ class IPv4Controller(
             ipv4.netmask = netmask
             ipv4.isAllocated = false
             ipv4List.add(ipv4Service.create(ipv4))
-            lastOctet++
+            currentOctet++
         }
         return builder.ok().data(ipv4List).build()
     }
@@ -109,5 +126,22 @@ class IPv4Controller(
     fun findAvailable(@PathVariable nodeId: Long): ResponseEntity<Response> {
         val ipv4 = ipv4Service.findAvailableByNodeId(nodeId)
         return builder.ok().data(ipv4).build()
+    }
+
+    private fun parseIpv4Octets(address: String): List<Int>? {
+        return try {
+            val bytes = InetAddress.getByName(address).address
+            if (bytes.size != 4) {
+                null
+            } else {
+                bytes.map { it.toInt() and 0xFF }
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun isValidNetmask(netmask: String): Boolean {
+        return netmask.toIntOrNull()?.let { it in 0..32 } == true || parseIpv4Octets(netmask) != null
     }
 }
