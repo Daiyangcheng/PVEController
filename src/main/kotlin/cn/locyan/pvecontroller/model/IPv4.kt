@@ -40,6 +40,22 @@ class IPv4 {
     @Column(name = "is_allocated", nullable = false)
     var isAllocated: Boolean? = false
 
+    @ColumnDefault("false")
+    @Column(name = "is_nat_ip", nullable = false)
+    var isNatIp: Boolean? = false
+
+    @Column(name = "external_ip_address")
+    var externalIpAddress: String? = null
+
+    @Column(name = "remote_port")
+    var remotePort: Int? = null
+
+    @Column(name = "port_range_start")
+    var portRangeStart: Int? = null
+
+    @Column(name = "port_range_end")
+    var portRangeEnd: Int? = null
+
     @Column(name = "node_id")
     var nodeId: Long? = null
 

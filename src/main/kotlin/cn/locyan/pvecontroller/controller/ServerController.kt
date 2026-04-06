@@ -27,6 +27,8 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 import java.time.LocalDateTime
 import kotlin.math.ceil
 
@@ -78,7 +80,7 @@ class ServerController(
         val dc = dataCenterService.findById(dcId) ?: return builder.notFound().message("Datacenter not found").build()
         val client = pveClient.newClient(dc.id!!) ?: return builder.exception().message("Unable to connect to PVE").build()
         val normalizedName = name?.trim()?.takeIf { it.isNotEmpty() } ?: "server-${System.currentTimeMillis()}"
-        val normalizedSshKeys = sshKeys?.trim().orEmpty()
+        val encodedSshKeys = encodeCloudInitSshKeys(sshKeys)
 
         val template = templateService.findById(templateId)
             ?: return builder.exception().message("Template not found").build()
@@ -248,7 +250,7 @@ class ServerController(
             /* smp */ null,
             /* sockets */ null,
             /* spice_enhancements */ null,
-            /* sshkeys */ normalizedSshKeys.takeIf { it.isNotEmpty() },
+            /* sshkeys */ encodedSshKeys,
             /* startdate */ null,
             /* startup */ null,
             /* tablet */ null,
@@ -617,6 +619,18 @@ class ServerController(
         } else {
             mapOf(0 to segments.joinToString(","))
         }
+    }
+
+    private fun encodeCloudInitSshKeys(sshKeys: String?): String? {
+        val normalized = sshKeys
+            ?.lineSequence()
+            ?.map { it.trim() }
+            ?.filter { it.isNotEmpty() }
+            ?.joinToString("\n")
+            ?.takeIf { it.isNotEmpty() }
+            ?: return null
+
+        return URLEncoder.encode(normalized, StandardCharsets.UTF_8).replace("+", "%20")
     }
 
     private fun cleanupFailedProvision(nodeId: Long, nodeName: String, vmId: Long, ipv4Id: Long?, ipv6Id: Long?) {

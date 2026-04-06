@@ -99,17 +99,17 @@ class RouterOSController(
         val data = routerOSApiService.execute(template.apiId!!, template.path!!, template.action!!, rendered)
             ?: return builder.exception().message("RouterOS command execution failed").build()
 
-        val ruleId = data.firstOrNull()?.get("id")?.toLongOrNull() ?: return builder.ok().data(
+        val ruleId = extractRuleId(data) ?: return builder.ok().data(
             mapOf(
                 "templateId" to templateId,
                 "apiId" to template.apiId,
                 "result" to data
             )
-        ).message("RouterOS command executed").build()
+        ).build()
 
         val rule = RouterOSRules().apply {
             this.templateId = templateId
-            this.ruleId = ruleId.toString()
+            this.ruleId = ruleId
             this.params = params
             this.apiId = template.apiId
         }
@@ -140,7 +140,7 @@ class RouterOSController(
             return builder.exception().message("RouterOS template ID does not match the selected rule").build()
         }
 
-        val data = routerOSApiService.execute(template.apiId!!, template.path!!, "remove", "number=${rule.ruleId}")
+        val data = routerOSApiService.execute(template.apiId!!, template.path!!, "remove", ".id=${rule.ruleId}")
             ?: return builder.exception().message("Unable to connect to RouterOS").build()
 
         routerOSRulesService.delete(rule)
@@ -199,5 +199,10 @@ class RouterOSController(
 
         routerOSTemplateService.delete(template)
         return builder.ok().build()
+    }
+
+    private fun extractRuleId(data: List<Map<String, String>>): String? {
+        val first = data.firstOrNull() ?: return null
+        return listOf("id", ".id", "ret").firstNotNullOfOrNull { key -> first[key]?.trim()?.takeIf { it.isNotEmpty() } }
     }
 }

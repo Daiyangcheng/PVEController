@@ -28,6 +28,6 @@ class RouterOSRules {
     @Column(name = "template_id", nullable = false)
     var templateId: Long? = null
 
-    @Column(name = "params", nullable = false)
+    @Column(name = "params", columnDefinition = "TEXT", nullable = false)
     var params: String? = null
 }
