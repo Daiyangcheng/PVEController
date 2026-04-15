@@ -1,7 +1,12 @@
 package cn.locyan.pvecontroller.config
 
+import cn.locyan.pvecontroller.service.jdbc.IPv4Service
 import cn.locyan.pvecontroller.service.jdbc.NodeService
+import cn.locyan.pvecontroller.service.jdbc.RouterOSApiService
+import cn.locyan.pvecontroller.service.jdbc.RouterOSTemplateService
+import cn.locyan.pvecontroller.service.jdbc.ServerService
 import cn.locyan.pvecontroller.service.jdbc.StorageService
+import cn.locyan.pvecontroller.service.jdbc.TrafficRecordService
 import org.springframework.context.annotation.Configuration
 import org.springframework.scheduling.annotation.EnableScheduling
 import org.springframework.scheduling.annotation.Scheduled
@@ -22,6 +27,11 @@ import org.slf4j.LoggerFactory
 class ScheduledTasksConfiguration(
     private val nodeService: NodeService,
     private val storageService: StorageService,
+    private val serverService: ServerService,
+    private val ipv4Service: IPv4Service,
+    private val routerOSTemplateService: RouterOSTemplateService,
+    private val routerOSApiService: RouterOSApiService,
+    private val trafficRecordService: TrafficRecordService,
 ) {
 
     private val logger = LoggerFactory.getLogger(ScheduledTasksConfiguration::class.java)
@@ -178,6 +188,100 @@ class ScheduledTasksConfiguration(
             logger.info("Cache warmup completed successfully")
         } catch (e: Exception) {
             logger.error("Error during cache warmup", e)
+        }
+    }
+
+    /**
+     * Sync traffic data from RouterOS /queue/simple every 10 minutes
+     * - Groups servers by nodeId
+     * - For each node, finds the associated RouterOS API via RouterOSTemplate
+     * - Queries /queue/simple/print and matches queue entries to servers by IP address
+     * - Stores traffic records in the database
+     */
+    @Scheduled(fixedDelay = 600000)  // 10 minutes
+    fun syncTrafficData() {
+        logger.info("Starting scheduled traffic data sync from RouterOS")
+        try {
+            val servers = serverService.findAll()
+            if (servers.isEmpty()) {
+                logger.info("No servers found, skipping traffic sync")
+                return
+            }
+
+            // Build serverId -> IPv4 address mapping
+            val serverIpMap = mutableMapOf<String, Long>() // ip -> serverId
+            val serverNodeMap = mutableMapOf<Long, Long>()  // serverId -> nodeId
+            for (server in servers) {
+                val serverId = server.id ?: continue
+                val nodeId = server.nodeId ?: continue
+                serverNodeMap[serverId] = nodeId
+
+                val ipv4 = ipv4Service.findByServerId(serverId) ?: continue
+                val ipAddress = ipv4.ipAddress ?: continue
+                serverIpMap[ipAddress] = serverId
+            }
+
+            if (serverIpMap.isEmpty()) {
+                logger.info("No servers with IPv4 addresses found, skipping traffic sync")
+                return
+            }
+
+            // Collect all distinct RouterOS API IDs from all nodes
+            val nodeIds = serverNodeMap.values.toSet()
+            val allApiIds = mutableSetOf<Long>()
+            for (nodeId in nodeIds) {
+                val templates = routerOSTemplateService.findByNodeId(nodeId)
+                for (template in templates) {
+                    val apiId = template.apiId ?: continue
+                    allApiIds.add(apiId)
+                }
+            }
+
+            // Query every RouterOS API and accumulate traffic per serverId
+            // ip -> (totalUpload, totalDownload)
+            val trafficAccumulator = mutableMapOf<Long, LongArray>() // serverId -> [upload, download]
+            for (apiId in allApiIds) {
+                val queues = try {
+                    routerOSApiService.execute(apiId, "/queue/simple", "print", emptyList())
+                } catch (e: Exception) {
+                    logger.warn("Failed to query /queue/simple on RouterOS API {}: {}", apiId, e.message)
+                    continue
+                }
+
+                print(queues.toString())
+
+                if (queues.isNullOrEmpty()) continue
+
+                for (queue in queues) {
+                    val target = queue["target"] ?: continue
+                    // target format: "192.168.1.100/32" or "192.168.1.100"
+                    val ip = target.split("/").firstOrNull() ?: continue
+                    val serverId = serverIpMap[ip] ?: continue
+
+                    val bytesStr = queue["bytes"] ?: continue
+                    // bytes format: "upload/download"
+                    val parts = bytesStr.split("/")
+                    if (parts.size != 2) continue
+
+                    val uploadBytes = parts[0].toLongOrNull() ?: continue
+                    val downloadBytes = parts[1].toLongOrNull() ?: continue
+
+                    val acc = trafficAccumulator.getOrPut(serverId) { longArrayOf(0L, 0L) }
+                    acc[0] += uploadBytes
+                    acc[1] += downloadBytes
+                }
+            }
+
+            // Persist accumulated traffic
+            var recordCount = 0
+            for ((serverId, bytes) in trafficAccumulator) {
+                trafficRecordService.createOrUpdate(serverId, bytes[0], bytes[1])
+                recordCount++
+            }
+
+            logger.info("Traffic data sync completed, {} records updated", recordCount)
+        } catch (e: Exception) {
+            logger.error("Error during traffic data sync", e)
         }
     }
 }

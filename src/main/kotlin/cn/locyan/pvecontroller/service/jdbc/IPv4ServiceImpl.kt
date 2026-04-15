@@ -57,4 +57,8 @@ class IPv4ServiceImpl(
             update(ip)
         }
     }
+
+    override fun findByServerId(serverId: Long): IPv4? {
+        return ipv4Repository.findByServerId(serverId)
+    }
 }

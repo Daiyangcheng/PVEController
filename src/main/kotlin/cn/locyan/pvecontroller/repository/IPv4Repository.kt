@@ -22,4 +22,5 @@ interface IPv4Repository : JpaRepository<IPv4, Long> {
         nativeQuery = true
     )
     fun lockFirstAvailableByNodeId(@Param("nodeId") nodeId: Long): IPv4?
+    fun findByServerId(serverId: Long): IPv4?
 }

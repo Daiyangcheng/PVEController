@@ -11,4 +11,5 @@ interface IPv4Service {
     fun findAvailableByNodeId(nodeId: Long): List<IPv4>
     fun allocateIP(nodeId: Long, vmId: Long): IPv4?
     fun deallocateIP(ipId: Long)
+    fun findByServerId(serverId: Long): IPv4?
 }

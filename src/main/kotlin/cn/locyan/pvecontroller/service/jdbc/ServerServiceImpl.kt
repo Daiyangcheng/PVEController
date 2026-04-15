@@ -40,4 +40,8 @@ class ServerServiceImpl(
     override fun findByIpId(ipId: Long): Server? {
         return serverRepository.findByIpId(ipId)
     }
+
+    override fun findAll(): List<Server> {
+        return serverRepository.findAll()
+    }
 }

@@ -12,6 +12,7 @@ import cn.locyan.pvecontroller.service.jdbc.NodeService
 import cn.locyan.pvecontroller.service.jdbc.ServerService
 import cn.locyan.pvecontroller.service.jdbc.TemplateGroupService
 import cn.locyan.pvecontroller.service.jdbc.TemplateService
+import cn.locyan.pvecontroller.service.jdbc.TrafficRecordService
 import cn.locyan.pvecontroller.shared.pve.PVEClient
 import cn.locyan.pvecontroller.shared.pve.ProcessPVEResult
 import cn.locyan.pvecontroller.shared.response.Response
@@ -45,6 +46,7 @@ class ServerController(
     private val dataCenterService: DataCenterService,
     private val pveClient: PVEClient,
     private val processor: ProcessPVEResult,
+    private val trafficRecordService: TrafficRecordService,
     private val builder: ResponseBuilder
 ) {
 
@@ -504,6 +506,23 @@ class ServerController(
         dataCenterService.findById(resolvedDcId) ?: return builder.notFound().message("Datacenter not found").build()
         val client = pveClient.newClient(resolvedDcId) ?: return builder.exception().message("Unable to connect to PVE").build()
 
+
+        // 运行状态直接 stop
+        if (server.status == "running" || server.status == "suspended") {
+            val stopReq = client.nodes[nodeName].qemu[server.vmId].status.stop.vmStop()
+            val check = processor.process(stopReq)
+            if (check != null) return check
+            val upid = stopReq.data.asText()
+            if (client.waitForTaskToFinish(upid, 1000, 600000)){
+                val result = client.getExitStatusTask(upid)
+                if ("OK" != result) {
+                    return builder.exception().message("Task failed").build()
+                }
+            } else {
+                return builder.exception().message("Task timeout").build()
+            }
+        }
+
         val deleteReq = client.nodes[nodeName].qemu[server.vmId].destroyVm()
         val check = processor.process(deleteReq)
         if (check != null) return check
@@ -531,9 +550,17 @@ class ServerController(
     }
 
     @GetMapping
-    fun findByUserId(@RequestParam("user_id") userId: Long): ResponseEntity<Response> {
-        val servers = serverService.findByUserId(userId)
+    fun findByUserId(): ResponseEntity<Response> {
+        val servers = serverService.findAll()
         return builder.ok().data(servers).build()
+    }
+
+    @GetMapping("/{id}/traffic")
+    fun getTrafficRecord(@PathVariable id: Long): ResponseEntity<Response> {
+        serverService.findById(id) ?: return builder.notFound().message("Server not found").build()
+        val record = trafficRecordService.findByServerId(id)
+            ?: return builder.notFound().message("No traffic data available").build()
+        return builder.ok().data(record).build()
     }
 
     @PostMapping("/{id}/start")
@@ -580,6 +607,71 @@ class ServerController(
         if (check != null) return check
 
         return builder.ok().data(server).message("Server rebooted").build()
+    }
+
+    @PostMapping("/{id}/suspend")
+    fun suspendServer(@PathVariable id: Long): ResponseEntity<Response> {
+        val server = serverService.findById(id) ?: return builder.exception().message("Server not found").build()
+        val node = nodeService.findById(server.nodeId!!) ?: return builder.notFound().message("Node not found").build()
+        val nodeName = node.name ?: return builder.notFound().message("Node name is missing").build()
+        val client = pveClient.newClient(node.dcId!!) ?: return builder.exception().message("Unable to connect to PVE").build()
+
+        val suspendReq = client.nodes[nodeName].qemu[server.vmId].status.suspend.vmSuspend()
+        val check = processor.process(suspendReq)
+        if (check != null) return check
+
+        server.status = "suspended"
+        serverService.update(server)
+
+        return builder.ok().data(server).message("Server suspended").build()
+    }
+
+    @PostMapping("/{id}/resume")
+    fun resumeServer(@PathVariable id: Long): ResponseEntity<Response> {
+        val server = serverService.findById(id) ?: return builder.exception().message("Server not found").build()
+        val node = nodeService.findById(server.nodeId!!) ?: return builder.notFound().message("Node not found").build()
+        val nodeName = node.name ?: return builder.notFound().message("Node name is missing").build()
+        val client = pveClient.newClient(node.dcId!!) ?: return builder.exception().message("Unable to connect to PVE").build()
+
+        val resumeReq = client.nodes[nodeName].qemu[server.vmId].status.resume.vmResume()
+        val check = processor.process(resumeReq)
+        if (check != null) return check
+
+        server.status = "running"
+        serverService.update(server)
+
+        return builder.ok().data(server).message("Server resumed").build()
+    }
+
+    @PostMapping("/{id}/shutdown")
+    fun shutdownServer(@PathVariable id: Long): ResponseEntity<Response> {
+        val server = serverService.findById(id) ?: return builder.exception().message("Server not found").build()
+        val node = nodeService.findById(server.nodeId!!) ?: return builder.notFound().message("Node not found").build()
+        val nodeName = node.name ?: return builder.notFound().message("Node name is missing").build()
+        val client = pveClient.newClient(node.dcId!!) ?: return builder.exception().message("Unable to connect to PVE").build()
+
+        val shutdownReq = client.nodes[nodeName].qemu[server.vmId].status.shutdown.vmShutdown()
+        val check = processor.process(shutdownReq)
+        if (check != null) return check
+
+        server.status = "stopped"
+        serverService.update(server)
+
+        return builder.ok().data(server).message("Server shutdown").build()
+    }
+
+    @PostMapping("/{id}/reset")
+    fun resetServer(@PathVariable id: Long): ResponseEntity<Response> {
+        val server = serverService.findById(id) ?: return builder.exception().message("Server not found").build()
+        val node = nodeService.findById(server.nodeId!!) ?: return builder.notFound().message("Node not found").build()
+        val nodeName = node.name ?: return builder.notFound().message("Node name is missing").build()
+        val client = pveClient.newClient(node.dcId!!) ?: return builder.exception().message("Unable to connect to PVE").build()
+
+        val resetReq = client.nodes[nodeName].qemu[server.vmId].status.reset.vmReset()
+        val check = processor.process(resetReq)
+        if (check != null) return check
+
+        return builder.ok().data(server).message("Server reset").build()
     }
 
     private fun resolvePrimaryDiskKey(vmConfig: JsonNode): String? {

@@ -10,4 +10,5 @@ interface ServerService {
     fun findByUserId(userId: Long): List<Server>
     fun findByTemplateId(templateId: Long): List<Server>
     fun findByIpId(ipId: Long): Server?
+    fun findAll(): List<Server>
 }
