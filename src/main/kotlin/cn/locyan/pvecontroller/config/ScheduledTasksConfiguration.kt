@@ -248,8 +248,6 @@ class ScheduledTasksConfiguration(
                     continue
                 }
 
-                print(queues.toString())
-
                 if (queues.isNullOrEmpty()) continue
 
                 for (queue in queues) {

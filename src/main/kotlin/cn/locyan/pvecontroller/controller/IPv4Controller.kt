@@ -45,7 +45,8 @@ class IPv4Controller(
         @RequestParam(value = "external_ip_address", required = false) externalIpAddress: String? = null,
         @RequestParam(value = "remote_port", required = false) remotePort: Int? = null,
         @RequestParam(value = "port_range_start", required = false) portRangeStart: Int? = null,
-        @RequestParam(value = "port_range_end", required = false) portRangeEnd: Int? = null
+        @RequestParam(value = "port_range_end", required = false) portRangeEnd: Int? = null,
+        @RequestParam(value = "ip_group_id", required = false) ipGroupId: Long? = null
     ): ResponseEntity<Response> {
         if (count <= 0) {
             return builder.badRequest().message("Count must be greater than 0").build()
@@ -94,6 +95,7 @@ class IPv4Controller(
             ipv4.remotePort = remotePort
             ipv4.portRangeStart = portRangeStart
             ipv4.portRangeEnd = portRangeEnd
+            ipv4.ipGroupId = ipGroupId
             normalizeNatFields(ipv4)
             ipv4List.add(ipv4Service.create(ipv4))
             currentOctet++

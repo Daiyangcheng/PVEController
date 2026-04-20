@@ -59,6 +59,9 @@ class IPv4 {
     @Column(name = "node_id")
     var nodeId: Long? = null
 
+    @Column(name = "ip_group_id")
+    var ipGroupId: Long? = null
+
     @Column(name = "created_time", nullable = false)
     var createdTime: LocalDateTime? = null
 

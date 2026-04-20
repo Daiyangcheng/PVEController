@@ -5,6 +5,7 @@ import cn.locyan.pvecontroller.model.IPv6Allocation
 import cn.locyan.pvecontroller.model.IPv6Range
 import cn.locyan.pvecontroller.model.Server
 import cn.locyan.pvecontroller.service.jdbc.DataCenterService
+import cn.locyan.pvecontroller.service.jdbc.IpGroupService
 import cn.locyan.pvecontroller.service.jdbc.IPv4Service
 import cn.locyan.pvecontroller.service.jdbc.IPv6AllocationService
 import cn.locyan.pvecontroller.service.jdbc.IPv6RangeService
@@ -39,6 +40,7 @@ class ServerController(
     private val serverService: ServerService,
     private val templateService: TemplateService,
     private val templateGroupService: TemplateGroupService,
+    private val ipGroupService: IpGroupService,
     private val ipv4Service: IPv4Service,
     private val ipv6AllocationService: IPv6AllocationService,
     private val ipv6RangeService: IPv6RangeService,
@@ -61,6 +63,7 @@ class ServerController(
         @RequestParam("disk") disk: Long,
         @RequestParam(value = "ip_id", required = false) ipId: Long? = null,
         @RequestParam(value = "auto_allocate_ipv4", required = false, defaultValue = "false") autoAllocateIpv4: Boolean,
+        @RequestParam(value = "ip_group_id", required = false) ipGroupId: Long? = null,
         @RequestParam(value = "ipv6_range_id", required = false) ipv6RangeId: Long? = null,
         @RequestParam(value = "auto_allocate_ipv6", required = false, defaultValue = "false") autoAllocateIpv6: Boolean,
         @RequestParam(value = "server_group_id", required = false) serverGroupId: Long? = null,
@@ -71,6 +74,9 @@ class ServerController(
         }
         if (ipId != null && autoAllocateIpv4) {
             return builder.badRequest().message("IPv4 cannot be both fixed and auto allocated").build()
+        }
+        if (ipGroupId != null && (ipId != null || autoAllocateIpv4)) {
+            return builder.badRequest().message("ip_group_id cannot be used with ip_id or auto_allocate_ipv4").build()
         }
         if (ipv6RangeId != null && autoAllocateIpv6) {
             return builder.badRequest().message("IPv6 cannot be both fixed and auto allocated").build()
@@ -124,12 +130,23 @@ class ServerController(
             null
         }
 
+        if (ipGroupId != null) {
+            val group = ipGroupService.findById(ipGroupId)
+                ?: return builder.notFound().message("IP group not found").build()
+            if (group.nodeId != nodeId) {
+                return builder.forbidden().message("The selected IP group does not belong to the requested node").build()
+            }
+        }
+
         val vmIdReq = client.cluster.nextid.nextid()
         var check = processor.process(vmIdReq)
         if (check != null) return check
         val vmId = vmIdReq.data.asLong()
 
         val ipv4 = when {
+            ipGroupId != null -> ipv4Service.allocateIPByGroup(ipGroupId, vmId)
+                ?: return builder.exception().message("No available IPv4 address in the selected IP group").build()
+
             autoAllocateIpv4 -> ipv4Service.allocateIP(nodeId, vmId)
                 ?: return builder.exception().message("No available IPv4 address on the selected node").build()
 

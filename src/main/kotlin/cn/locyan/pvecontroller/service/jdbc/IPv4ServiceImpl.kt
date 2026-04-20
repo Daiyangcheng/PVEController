@@ -61,4 +61,12 @@ class IPv4ServiceImpl(
     override fun findByServerId(serverId: Long): IPv4? {
         return ipv4Repository.findByServerId(serverId)
     }
+
+    @Transactional
+    override fun allocateIPByGroup(ipGroupId: Long, vmId: Long): IPv4? {
+        val ip = ipv4Repository.lockFirstAvailableByIpGroupId(ipGroupId) ?: return null
+        ip.isAllocated = true
+        ip.vmId = vmId
+        return update(ip)
+    }
 }

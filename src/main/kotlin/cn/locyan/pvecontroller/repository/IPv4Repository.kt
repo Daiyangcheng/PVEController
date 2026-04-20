@@ -23,4 +23,18 @@ interface IPv4Repository : JpaRepository<IPv4, Long> {
     )
     fun lockFirstAvailableByNodeId(@Param("nodeId") nodeId: Long): IPv4?
     fun findByServerId(serverId: Long): IPv4?
+
+    @Query(
+        value = """
+            select * from ipv4
+            where ip_group_id = :ipGroupId and is_allocated = false
+            order by id asc
+            limit 1
+            for update skip locked
+        """,
+        nativeQuery = true
+    )
+    fun lockFirstAvailableByIpGroupId(@Param("ipGroupId") ipGroupId: Long): IPv4?
+
+    fun findAllByIpGroupId(ipGroupId: Long): List<IPv4>
 }
