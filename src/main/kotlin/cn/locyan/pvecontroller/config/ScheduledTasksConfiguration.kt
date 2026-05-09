@@ -1,16 +1,17 @@
 package cn.locyan.pvecontroller.config
 
-import cn.locyan.pvecontroller.service.jdbc.IPv4Service
-import cn.locyan.pvecontroller.service.jdbc.NodeService
-import cn.locyan.pvecontroller.service.jdbc.RouterOSApiService
-import cn.locyan.pvecontroller.service.jdbc.RouterOSTemplateService
-import cn.locyan.pvecontroller.service.jdbc.ServerService
-import cn.locyan.pvecontroller.service.jdbc.StorageService
-import cn.locyan.pvecontroller.service.jdbc.TrafficRecordService
+import cn.locyan.pvecontroller.model.Server
+import cn.locyan.pvecontroller.service.jdbc.*
+import cn.locyan.pvecontroller.shared.pve.PVEClient
+import cn.locyan.pvecontroller.shared.pve.ProcessPVEResult
+import org.slf4j.LoggerFactory
 import org.springframework.context.annotation.Configuration
 import org.springframework.scheduling.annotation.EnableScheduling
 import org.springframework.scheduling.annotation.Scheduled
-import org.slf4j.LoggerFactory
+import java.net.Inet6Address
+import java.net.InetAddress
+import java.time.LocalDateTime
+
 
 /**
  * Scheduled Tasks Configuration
@@ -29,9 +30,12 @@ class ScheduledTasksConfiguration(
     private val storageService: StorageService,
     private val serverService: ServerService,
     private val ipv4Service: IPv4Service,
+    private val ipv6Service: IPv6AllocationService,
     private val routerOSTemplateService: RouterOSTemplateService,
     private val routerOSApiService: RouterOSApiService,
     private val trafficRecordService: TrafficRecordService,
+    private val pveClient: PVEClient,
+    private val processor: ProcessPVEResult,
 ) {
 
     private val logger = LoggerFactory.getLogger(ScheduledTasksConfiguration::class.java)
@@ -211,13 +215,21 @@ class ScheduledTasksConfiguration(
             // Build serverId -> IPv4 address mapping
             val serverIpMap = mutableMapOf<String, Long>() // ip -> serverId
             val serverNodeMap = mutableMapOf<Long, Long>()  // serverId -> nodeId
+            val serverMap = mutableMapOf<Long, Server>()
             for (server in servers) {
                 val serverId = server.id ?: continue
                 val nodeId = server.nodeId ?: continue
                 serverNodeMap[serverId] = nodeId
+                serverMap[serverId] = server
 
                 val ipv4 = ipv4Service.findByServerId(serverId) ?: continue
+                val ipv6 = ipv6Service.findByServerId(serverId)
                 val ipAddress = ipv4.ipAddress ?: continue
+                if (ipv6 != null) {
+                    val inet6 = Inet6Address.getByName(ipv6.assignedAddress) as Inet6Address
+                    val compressed = inet6.hostAddress
+                    serverIpMap[compressed!!] = serverId
+                }
                 serverIpMap[ipAddress] = serverId
             }
 
@@ -268,12 +280,36 @@ class ScheduledTasksConfiguration(
                     acc[0] += uploadBytes
                     acc[1] += downloadBytes
                 }
+                routerOSApiService.execute(apiId, "/queue/simple", "reset-counters-all", emptyList()) ?: logger.error("无法重置 ROS ID: $apiId 的计数器")
             }
 
             // Persist accumulated traffic
             var recordCount = 0
             for ((serverId, bytes) in trafficAccumulator) {
-                trafficRecordService.createOrUpdate(serverId, bytes[0], bytes[1])
+                val server = serverService.findById(serverId) ?: continue
+                if (server.trafficResetTime == null) {
+                    server.trafficResetTime = server.createdTime!!.plusMonths(1)
+                    serverService.update(server)
+                }
+                if (LocalDateTime.now() > server.trafficResetTime){
+                    // 一个月重置一次流量
+                    trafficRecordService.createOrUpdate(serverId, 0, 0)
+                    // 重置流量重置时间
+                    server.trafficResetTime = server.trafficResetTime!!.plusMonths(1)
+                    serverService.update(server)
+                } else {
+                    // 正常附加
+                    val record = trafficRecordService.findByServerId(serverId)
+                    if (record != null){
+                        trafficRecordService.createOrUpdate(serverId, bytes[0] + record.uploadBytes!!, bytes[1] + record.downloadBytes!!)
+                    } else {
+                        trafficRecordService.createOrUpdate(serverId, bytes[0], bytes[1])
+                    }
+                }
+                //TODO: 流量超限暂停
+//                serverMap[serverId]?.let { server ->
+//                    enforceTrafficLimit(server, bytes[0] + bytes[1])
+//                }
                 recordCount++
             }
 
@@ -281,5 +317,58 @@ class ScheduledTasksConfiguration(
         } catch (e: Exception) {
             logger.error("Error during traffic data sync", e)
         }
+    }
+
+    private fun enforceTrafficLimit(server: Server, totalBytes: Long) {
+        val serverId = server.id ?: return
+        val bandwidthLimitGb = server.bandwidthLimitGb?.takeIf { it > 0 } ?: return
+        val limitBytes = bandwidthLimitGb * 1024L * 1024L * 1024L
+        if (totalBytes < limitBytes || server.status == Server.STATUS_TRAFFIC_OVER_LIMIT) {
+            return
+        }
+
+        val canUpdateStatus = when (server.status) {
+            Server.STATUS_STOPPED, null, "" -> true
+            else -> stopServerForTrafficLimit(server)
+        }
+        if (!canUpdateStatus) {
+            logger.warn("Server {} exceeded traffic limit but automatic stop failed", serverId)
+            return
+        }
+
+        server.status = Server.STATUS_TRAFFIC_OVER_LIMIT
+        serverService.update(server)
+        logger.warn("Server {} exceeded traffic limit and is now marked as traffic over limit", serverId)
+    }
+
+    private fun stopServerForTrafficLimit(server: Server): Boolean {
+        val serverId = server.id ?: return false
+        val nodeId = server.nodeId ?: return false
+        val vmId = server.vmId ?: return false
+        val node = nodeService.findById(nodeId) ?: return false
+        val nodeName = node.name ?: return false
+        val dcId = node.dcId ?: return false
+        val client = pveClient.newClient(dcId) ?: return false
+
+        val stopReq = client.nodes[nodeName].qemu[vmId].status.stop.vmStop()
+        val check = processor.process(stopReq)
+        if (check != null) {
+            logger.warn("Failed to submit stop task for traffic limited server {}", serverId)
+            return false
+        }
+
+        val upid = stopReq.data.asText()
+        if (!client.waitForTaskToFinish(upid, 1000, 600000)) {
+            logger.warn("Stop task timed out for traffic limited server {}", serverId)
+            return false
+        }
+
+        val result = client.getExitStatusTask(upid)
+        if (result != "OK") {
+            logger.warn("Stop task failed for traffic limited server {} with result {}", serverId, result)
+            return false
+        }
+
+        return true
     }
 }

@@ -4,35 +4,20 @@ import cn.locyan.pvecontroller.model.IPv4
 import cn.locyan.pvecontroller.model.IPv6Allocation
 import cn.locyan.pvecontroller.model.IPv6Range
 import cn.locyan.pvecontroller.model.Server
-import cn.locyan.pvecontroller.service.jdbc.DataCenterService
-import cn.locyan.pvecontroller.service.jdbc.IpGroupService
-import cn.locyan.pvecontroller.service.jdbc.IPv4Service
-import cn.locyan.pvecontroller.service.jdbc.IPv6AllocationService
-import cn.locyan.pvecontroller.service.jdbc.IPv6RangeService
-import cn.locyan.pvecontroller.service.jdbc.NodeService
-import cn.locyan.pvecontroller.service.jdbc.ServerService
-import cn.locyan.pvecontroller.service.jdbc.TemplateGroupService
-import cn.locyan.pvecontroller.service.jdbc.TemplateService
-import cn.locyan.pvecontroller.service.jdbc.TrafficRecordService
+import cn.locyan.pvecontroller.service.jdbc.*
 import cn.locyan.pvecontroller.shared.pve.PVEClient
 import cn.locyan.pvecontroller.shared.pve.ProcessPVEResult
 import cn.locyan.pvecontroller.shared.response.Response
 import cn.locyan.pvecontroller.shared.response.ResponseBuilder
 import com.fasterxml.jackson.databind.JsonNode
 import org.springframework.http.ResponseEntity
-import org.springframework.web.bind.annotation.DeleteMapping
-import org.springframework.web.bind.annotation.GetMapping
-import org.springframework.web.bind.annotation.PathVariable
-import org.springframework.web.bind.annotation.PostMapping
-import org.springframework.web.bind.annotation.PutMapping
-import org.springframework.web.bind.annotation.RequestBody
-import org.springframework.web.bind.annotation.RequestMapping
-import org.springframework.web.bind.annotation.RequestParam
-import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.bind.annotation.*
+import java.net.URLDecoder
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.time.LocalDateTime
 import kotlin.math.ceil
+
 
 @RestController
 @RequestMapping("/servers")
@@ -45,6 +30,8 @@ class ServerController(
     private val ipv6AllocationService: IPv6AllocationService,
     private val ipv6RangeService: IPv6RangeService,
     private val nodeService: NodeService,
+    private val routerOSTemplateService: RouterOSTemplateService,
+    private val routerOSApiService: RouterOSApiService,
     private val dataCenterService: DataCenterService,
     private val pveClient: PVEClient,
     private val processor: ProcessPVEResult,
@@ -67,10 +54,14 @@ class ServerController(
         @RequestParam(value = "ipv6_range_id", required = false) ipv6RangeId: Long? = null,
         @RequestParam(value = "auto_allocate_ipv6", required = false, defaultValue = "false") autoAllocateIpv6: Boolean,
         @RequestParam(value = "server_group_id", required = false) serverGroupId: Long? = null,
+        @RequestParam(value = "bandwidth_limit_gb", required = false) bandwidthLimitGb: Long? = null,
         @RequestParam(value = "name", required = false) name: String? = null,
     ): ResponseEntity<Response> {
         if (cpu <= 0 || memory <= 0 || disk <= 0) {
             return builder.badRequest().message("CPU, memory and disk must be positive").build()
+        }
+        if (bandwidthLimitGb != null && bandwidthLimitGb < 0) {
+            return builder.badRequest().message("bandwidth_limit_gb must be zero or greater").build()
         }
         if (ipId != null && autoAllocateIpv4) {
             return builder.badRequest().message("IPv4 cannot be both fixed and auto allocated").build()
@@ -335,7 +326,8 @@ class ServerController(
                     this.cpu = cpu
                     this.memory = memory
                     this.disk = effectiveDiskGb
-                    this.status = "stopped"
+                    this.bandwidthLimitGb = normalizeBandwidthLimitGb(bandwidthLimitGb)
+                    this.status = Server.STATUS_STOPPED
                     this.createdTime = LocalDateTime.now()
                     this.updatedTime = LocalDateTime.now()
                 }
@@ -379,10 +371,14 @@ class ServerController(
         @RequestParam("cpu") cpu: Long,
         @RequestParam("memory") memory: Long,
         @RequestParam("disk") disk: Long,
+        @RequestParam(value = "bandwidth_limit_gb", required = false) bandwidthLimitGb: Long? = null,
         @RequestParam(value = "name", required = false) name: String? = null,
     ): ResponseEntity<Response> {
         if (cpu <= 0 || memory <= 0 || disk <= 0) {
             return builder.badRequest().message("CPU, memory and disk must be positive").build()
+        }
+        if (bandwidthLimitGb != null && bandwidthLimitGb < 0) {
+            return builder.badRequest().message("bandwidth_limit_gb must be zero or greater").build()
         }
 
         val server = serverService.findById(id) ?: return builder.exception().message("Server not found").build()
@@ -503,9 +499,390 @@ class ServerController(
         server.cpu = cpu
         server.memory = memory
         server.disk = disk
+        server.bandwidthLimitGb = normalizeBandwidthLimitGb(bandwidthLimitGb)
         name?.trim()?.takeIf { it.isNotEmpty() }?.let { server.name = it }
         val updatedServer = serverService.update(server)
         return builder.ok().data(updatedServer).message("Server upgraded").build()
+    }
+
+    @PostMapping("/{id}/reinstall")
+    fun reinstallServer(
+        @PathVariable id: Long,
+        @RequestParam("dc_id", required = false) dcId: Long? = null,
+        @RequestParam("ssh_keys", required = false) sshKeys: String? = null,
+        @RequestParam("enable", required = false) isEnable: Boolean? = true
+    ): ResponseEntity<Response> {
+        // 销毁
+        val server = serverService.findById(id) ?: return builder.exception().message("Server not found").build()
+        val node = nodeService.findById(server.nodeId!!) ?: return builder.notFound().message("Node not found").build()
+        val nodeName = node.name ?: return builder.notFound().message("Node name is missing").build()
+        val resolvedDcId = node.dcId ?: return builder.notFound().message("Datacenter not found").build()
+        if (dcId != null && dcId != resolvedDcId) {
+            return builder.badRequest().message("The provided datacenter does not match the server node").build()
+        }
+        dataCenterService.findById(resolvedDcId) ?: return builder.notFound().message("Datacenter not found").build()
+        val client = pveClient.newClient(resolvedDcId) ?: return builder.exception().message("Unable to connect to PVE").build()
+
+        var check: ResponseEntity<Response>?
+
+        var sshKeysValue: String?
+
+        if (sshKeys == null){
+            val cloudInitGetReq = client.nodes[nodeName].qemu[server.vmId].cloudinit.cloudinitPending()
+            check = processor.process(cloudInitGetReq)
+            if (check != null) return check
+            // 原值可以直接用
+            sshKeysValue = cloudInitGetReq.data
+                ?.find { it["key"].asText() == "sshkeys" }
+                ?.get("value").toString()
+            sshKeysValue = URLDecoder.decode(sshKeysValue, StandardCharsets.UTF_8.name())
+            sshKeysValue = sshKeysValue.replace("\\n", "")
+            sshKeysValue = sshKeysValue.replace("\\\"", "")
+            sshKeysValue = sshKeysValue.replace("\"", "")
+            sshKeysValue = encodeCloudInitSshKeys(sshKeysValue)
+            if (sshKeysValue == null) {
+                return builder.exception().message("SSH Key 格式错误").build()
+            }
+        } else {
+            sshKeysValue = encodeCloudInitSshKeys(sshKeys)
+            if (sshKeysValue == null) {
+                return builder.exception().message("SSH Key 格式错误").build()
+            }
+        }
+
+        print(sshKeysValue)
+
+        // 运行状态直接 stop
+        if (server.status == Server.STATUS_RUNNING || server.status == Server.STATUS_SUSPENDED || server.status == Server.STATUS_TRAFFIC_OVER_LIMIT) {
+            val stopReq = client.nodes[nodeName].qemu[server.vmId].status.stop.vmStop()
+            check = processor.process(stopReq)
+            if (check != null) return check
+            val upid = stopReq.data.asText()
+            if (client.waitForTaskToFinish(upid, 1000, 600000)){
+                val result = client.getExitStatusTask(upid)
+                if ("OK" != result) {
+                    return builder.exception().message("Task failed").build()
+                }
+            } else {
+                return builder.exception().message("Task timeout").build()
+            }
+        }
+
+        // 更新状态
+        server.status = Server.STATUS_REINSTALL
+        serverService.update(server)
+
+        val deleteReq = client.nodes[nodeName].qemu[server.vmId].destroyVm()
+        check = processor.process(deleteReq)
+        // 等待机器完成销毁
+        val upid = deleteReq.data.asText()
+        if (client.waitForTaskToFinish(upid, 1000, 600000)){
+            val result = client.getExitStatusTask(upid)
+            if ("OK" != result) {
+                return builder.exception().message("Task failed").build()
+            }
+        } else {
+            return builder.exception().message("Task timeout").build()
+        }
+
+        if (check != null) return check
+
+        // 获取 IP 信息
+        val ipv4 = ipv4Service.findByServerId(server.id!!)
+        val ipv6 = ipv6AllocationService.findByServerId(server.id!!)
+        var ipv6Range: IPv6Range? = null;
+        if (ipv6 != null){
+            ipv6Range = ipv6RangeService.findById(ipv6.ipv6RangeId!!)
+        }
+
+        // 创建
+        val template = templateService.findById(server.templateId!!)
+        if (template == null){
+            // 机器已经销毁掉了，方便新建所以 IP 也释放掉
+            cleanupFailedProvision(server.nodeId!!, nodeName, server.vmId!!, ipv4?.id, ipv6?.id)
+            serverService.delete(server)
+            return builder.exception().message("模板 ID 不存在").build()
+        }
+        val cloneReq = client.nodes[nodeName].qemu[template.templateId].clone.cloneVm(
+            server.vmId!!.toInt(),
+            null,
+            "",
+            "qcow2",
+            true,
+            server.name,
+            null,
+            null,
+            null,
+            null
+        )
+
+        check = processor.process(cloneReq)
+        if (check != null) {
+            // 机器已经销毁掉了，方便新建所以 IP 也释放掉
+            cleanupFailedProvision(server.nodeId!!, nodeName, server.vmId!!, ipv4?.id, ipv6?.id)
+            serverService.delete(server)
+            return check
+        }
+
+        val ipConfigMap = buildCloudInitIpConfig(ipv4, ipv6, ipv6Range)
+
+        val cloudInitReq = client.nodes[nodeName].qemu[server.vmId].config.updateVmAsync(
+            /* acpi */ null,
+            /* affinity */ null,
+            /* agent */ null,
+            /* allow_ksm */ null,
+            /* amd_sev */ null,
+            /* arch */ null,
+            /* args */ null,
+            /* audio0 */ null,
+            /* autostart */ false,
+            /* background_delay */ null,
+            /* balloon */ null,
+            /* bios */ null,
+            /* boot */ null,
+            /* bootdisk */ null,
+            /* cdrom */ null,
+            /* cicustom */ null,
+            /* cipassword */ null,
+            /* citype */ null,
+            /* ciupgrade */ false,
+            /* ciuser */ null,
+            /* cores */ server.cpu!!.toInt(),
+            /* cpu */ "host",
+            /* cpulimit */ null,
+            /* cpuunits */ null,
+            /* delete */ null,
+            /* description */ null,
+            /* digest */ null,
+            /* efidisk0 */ null,
+            /* force */ null,
+            /* freeze */ null,
+            /* hookscript */ null,
+            /* hostpciN */ null,
+            /* hotplug */ null,
+            /* hugepages */ null,
+            /* ideN */ null,
+            /* import_working_storage */ null,
+            /* intel_tdx */ null,
+            /* ipconfigN */ ipConfigMap,
+            /* ivshmem */ null,
+            /* keephugepages */ null,
+            /* keyboard */ null,
+            /* kvm */ null,
+            /* localtime */ null,
+            /* lock_ */ null,
+            /* machine */ null,
+            /* memory */ server.memory.toString(),
+            /* migrate_downtime */ null,
+            /* migrate_speed */ null,
+            /* name */ null,
+            /* nameserver */ "1.1.1.1 8.8.8.8",
+            /* netN */ null,
+            /* numa */ null,
+            /* numaN */ null,
+            /* onboot */ null,
+            /* ostype */ null,
+            /* parallelN */ null,
+            /* protection */ null,
+            /* reboot */ null,
+            /* revert */ null,
+            /* rng0 */ null,
+            /* sataN */ null,
+            /* scsiN */ null,
+            /* scsihw */ null,
+            /* searchdomain */ null,
+            /* serialN */ null,
+            /* shares */ null,
+            /* skiplock */ null,
+            /* smbios1 */ null,
+            /* smp */ null,
+            /* sockets */ null,
+            /* spice_enhancements */ null,
+            /* sshkeys */ sshKeysValue,
+            /* startdate */ null,
+            /* startup */ null,
+            /* tablet */ null,
+            /* tags */ null,
+            /* tdf */ null,
+            /* template */ null,
+            /* tpmstate0 */ null,
+            /* unusedN */ null,
+            /* usbN */ null,
+            /* vcpus */ null,
+            /* vga */ null,
+            /* virtioN */ null,
+            /* virtiofsN */ null,
+            /* vmgenid */ null,
+            /* vmstatestorage */ null,
+            /* watchdog */ null
+        )
+        check = processor.process(cloudInitReq)
+        if (check != null) {
+            cleanupFailedProvision(server.nodeId!!, nodeName, server.vmId!!, ipv4?.id, ipv6?.id)
+            serverService.delete(server)
+            return check
+        }
+
+        val vmConfigReq = client.nodes[nodeName].qemu[server.vmId].config.vmConfig(true, null)
+        check = processor.process(vmConfigReq)
+        if (check != null) {
+            server.status = Server.STATUS_STOPPED
+            serverService.update(server)
+            return check
+        }
+
+        val primaryDiskKey = resolvePrimaryDiskKey(vmConfigReq.data)
+        val currentDiskGb = extractDiskSizeGb(primaryDiskKey?.let { vmConfigReq.data.get(it)?.asText() })
+        val effectiveDiskGb = maxOf(server.disk!!, currentDiskGb ?: server.disk!!)
+
+        if (primaryDiskKey != null && server.disk!! > (currentDiskGb ?: 0L)) {
+            val resizeSize = if (currentDiskGb != null) {
+                "+${server.disk!! - currentDiskGb}G"
+            } else {
+                "${server.disk!!}G"
+            }
+
+            val resizeReq = client.nodes[nodeName].qemu[server.vmId].resize.resizeVm(primaryDiskKey, resizeSize)
+            check = processor.process(resizeReq)
+            if (check != null) {
+                server.status = Server.STATUS_STOPPED
+                serverService.update(server)
+                return check
+            }
+        }
+
+        val startReq = client.nodes[nodeName].qemu[server.vmId].status.start.vmStart()
+        check = processor.process(startReq)
+        if (check != null) {
+            server.status = Server.STATUS_STOPPED
+            serverService.update(server)
+            return check
+        }
+
+        // 更新状态为运行中
+        server.status = Server.STATUS_RUNNING
+        serverService.update(server)
+
+        return builder.ok().build()
+    }
+
+    @PostMapping("/{id}/sshkeys")
+    fun resetSshKeys(
+        @PathVariable id: Long,
+        @RequestParam("ssh_keys", required = false) sshKeys: String? = null
+    ): ResponseEntity<Response> {
+        val server = serverService.findById(id) ?: return builder.exception().message("Server not found").build()
+        val node = nodeService.findById(server.nodeId!!) ?: return builder.notFound().message("Node not found").build()
+        val nodeName = node.name ?: return builder.notFound().message("Node name is missing").build()
+        val resolvedDcId = node.dcId ?: return builder.notFound().message("Datacenter not found").build()
+        dataCenterService.findById(resolvedDcId) ?: return builder.notFound().message("Datacenter not found").build()
+        val client = pveClient.newClient(resolvedDcId) ?: return builder.exception().message("Unable to connect to PVE").build()
+
+        val cloudInitReq = client.nodes[nodeName].qemu[server.vmId].config.updateVmAsync(
+            /* acpi */ null,
+            /* affinity */ null,
+            /* agent */ null,
+            /* allow_ksm */ null,
+            /* amd_sev */ null,
+            /* arch */ null,
+            /* args */ null,
+            /* audio0 */ null,
+            /* autostart */ false,
+            /* background_delay */ null,
+            /* balloon */ null,
+            /* bios */ null,
+            /* boot */ null,
+            /* bootdisk */ null,
+            /* cdrom */ null,
+            /* cicustom */ null,
+            /* cipassword */ null,
+            /* citype */ null,
+            /* ciupgrade */ false,
+            /* ciuser */ null,
+            /* cores */ null,
+            /* cpu */ null,
+            /* cpulimit */ null,
+            /* cpuunits */ null,
+            /* delete */ null,
+            /* description */ null,
+            /* digest */ null,
+            /* efidisk0 */ null,
+            /* force */ null,
+            /* freeze */ null,
+            /* hookscript */ null,
+            /* hostpciN */ null,
+            /* hotplug */ null,
+            /* hugepages */ null,
+            /* ideN */ null,
+            /* import_working_storage */ null,
+            /* intel_tdx */ null,
+            /* ipconfigN */ null,
+            /* ivshmem */ null,
+            /* keephugepages */ null,
+            /* keyboard */ null,
+            /* kvm */ null,
+            /* localtime */ null,
+            /* lock_ */ null,
+            /* machine */ null,
+            /* memory */ null,
+            /* migrate_downtime */ null,
+            /* migrate_speed */ null,
+            /* name */ null,
+            /* nameserver */ null,
+            /* netN */ null,
+            /* numa */ null,
+            /* numaN */ null,
+            /* onboot */ null,
+            /* ostype */ null,
+            /* parallelN */ null,
+            /* protection */ null,
+            /* reboot */ null,
+            /* revert */ null,
+            /* rng0 */ null,
+            /* sataN */ null,
+            /* scsiN */ null,
+            /* scsihw */ null,
+            /* searchdomain */ null,
+            /* serialN */ null,
+            /* shares */ null,
+            /* skiplock */ null,
+            /* smbios1 */ null,
+            /* smp */ null,
+            /* sockets */ null,
+            /* spice_enhancements */ null,
+            /* sshkeys */ encodeCloudInitSshKeys(sshKeys),
+            /* startdate */ null,
+            /* startup */ null,
+            /* tablet */ null,
+            /* tags */ null,
+            /* tdf */ null,
+            /* template */ null,
+            /* tpmstate0 */ null,
+            /* unusedN */ null,
+            /* usbN */ null,
+            /* vcpus */ null,
+            /* vga */ null,
+            /* virtioN */ null,
+            /* virtiofsN */ null,
+            /* vmgenid */ null,
+            /* vmstatestorage */ null,
+            /* watchdog */ null
+        )
+        var check = processor.process(cloudInitReq)
+        if (check != null) return check
+
+        // 重生成 Cloudinit
+        val regenerateCloudInit = client.nodes[nodeName].qemu[server.vmId].cloudinit.cloudinitUpdate()
+        check = processor.process(regenerateCloudInit)
+        if (check != null) return check
+
+        // 执行硬重启
+        val res = this.resetServer(id)
+        if (res.statusCode.toString() != "200"){
+            return builder.exception().message(res.body!!.message).build()
+        }
+
+        return builder.ok().build()
     }
 
     @DeleteMapping("/{id}")
@@ -525,7 +902,7 @@ class ServerController(
 
 
         // 运行状态直接 stop
-        if (server.status == "running" || server.status == "suspended") {
+        if (server.status == Server.STATUS_RUNNING || server.status == Server.STATUS_SUSPENDED || server.status == Server.STATUS_TRAFFIC_OVER_LIMIT) {
             val stopReq = client.nodes[nodeName].qemu[server.vmId].status.stop.vmStop()
             val check = processor.process(stopReq)
             if (check != null) return check
@@ -580,9 +957,24 @@ class ServerController(
         return builder.ok().data(record).build()
     }
 
+    @PostMapping("/{id}/traffic/reset")
+    fun resetTraffic(@PathVariable id: Long): ResponseEntity<Response> {
+        val server = serverService.findById(id) ?: return builder.exception().message("Server not found").build()
+
+
+        trafficRecordService.createOrUpdate(id, 0, 0)
+        serverService.update(server)
+        return builder.ok().data(server).message("Traffic reset successfully").build()
+    }
+
     @PostMapping("/{id}/start")
     fun startServer(@PathVariable id: Long): ResponseEntity<Response> {
         val server = serverService.findById(id) ?: return builder.exception().message("Server not found").build()
+        if (server.status == Server.STATUS_TRAFFIC_OVER_LIMIT || isTrafficLimitExceeded(server)) {
+            server.status = Server.STATUS_TRAFFIC_OVER_LIMIT
+            serverService.update(server)
+            return builder.forbidden().message("Traffic limit exceeded. Reset traffic before starting the server.").build()
+        }
         val node = nodeService.findById(server.nodeId!!) ?: return builder.notFound().message("Node not found").build()
         val nodeName = node.name ?: return builder.notFound().message("Node name is missing").build()
         val client = pveClient.newClient(node.dcId!!) ?: return builder.exception().message("Unable to connect to PVE").build()
@@ -591,7 +983,7 @@ class ServerController(
         val check = processor.process(startReq)
         if (check != null) return check
 
-        server.status = "running"
+        server.status = Server.STATUS_RUNNING
         serverService.update(server)
         return builder.ok().data(server).message("Server started").build()
     }
@@ -607,7 +999,7 @@ class ServerController(
         val check = processor.process(stopReq)
         if (check != null) return check
 
-        server.status = "stopped"
+        server.status = Server.STATUS_STOPPED
         serverService.update(server)
         return builder.ok().data(server).message("Server stopped").build()
     }
@@ -637,7 +1029,7 @@ class ServerController(
         val check = processor.process(suspendReq)
         if (check != null) return check
 
-        server.status = "suspended"
+        server.status = Server.STATUS_SUSPENDED
         serverService.update(server)
 
         return builder.ok().data(server).message("Server suspended").build()
@@ -646,6 +1038,11 @@ class ServerController(
     @PostMapping("/{id}/resume")
     fun resumeServer(@PathVariable id: Long): ResponseEntity<Response> {
         val server = serverService.findById(id) ?: return builder.exception().message("Server not found").build()
+        if (server.status == Server.STATUS_TRAFFIC_OVER_LIMIT || isTrafficLimitExceeded(server)) {
+            server.status = Server.STATUS_TRAFFIC_OVER_LIMIT
+            serverService.update(server)
+            return builder.forbidden().message("Traffic limit exceeded. Reset traffic before resuming the server.").build()
+        }
         val node = nodeService.findById(server.nodeId!!) ?: return builder.notFound().message("Node not found").build()
         val nodeName = node.name ?: return builder.notFound().message("Node name is missing").build()
         val client = pveClient.newClient(node.dcId!!) ?: return builder.exception().message("Unable to connect to PVE").build()
@@ -654,7 +1051,7 @@ class ServerController(
         val check = processor.process(resumeReq)
         if (check != null) return check
 
-        server.status = "running"
+        server.status = Server.STATUS_RUNNING
         serverService.update(server)
 
         return builder.ok().data(server).message("Server resumed").build()
@@ -671,7 +1068,7 @@ class ServerController(
         val check = processor.process(shutdownReq)
         if (check != null) return check
 
-        server.status = "stopped"
+        server.status = Server.STATUS_STOPPED
         serverService.update(server)
 
         return builder.ok().data(server).message("Server shutdown").build()
@@ -728,6 +1125,19 @@ class ServerController(
         } else {
             mapOf(0 to segments.joinToString(","))
         }
+    }
+
+    private fun normalizeBandwidthLimitGb(bandwidthLimitGb: Long?): Long? {
+        return bandwidthLimitGb?.takeIf { it > 0 }
+    }
+
+    private fun isTrafficLimitExceeded(server: Server): Boolean {
+        val serverId = server.id ?: return false
+        val bandwidthLimitGb = server.bandwidthLimitGb?.takeIf { it > 0 } ?: return false
+        val record = trafficRecordService.findByServerId(serverId) ?: return false
+        val totalBytes = maxOf(0, record.uploadBytes ?: 0) + maxOf(0, record.downloadBytes ?: 0)
+
+        return totalBytes >= bandwidthLimitGb * 1024L * 1024L * 1024L
     }
 
     private fun encodeCloudInitSshKeys(sshKeys: String?): String? {

@@ -15,6 +15,14 @@ import java.time.LocalDateTime
 @NoArgsConstructor
 @Table(name = "servers")
 class Server {
+    companion object {
+        const val STATUS_STOPPED = "stopped"
+        const val STATUS_RUNNING = "running"
+        const val STATUS_SUSPENDED = "suspended"
+        const val STATUS_TRAFFIC_OVER_LIMIT = "traffic_over_limit"
+        const val STATUS_REINSTALL = "reinstalling"
+    }
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id", nullable = false)
@@ -56,6 +64,9 @@ class Server {
     @Column(name = "disk")
     var disk: Long? = null
 
+    @Column(name = "bandwidth_limit_gb")
+    var bandwidthLimitGb: Long? = null
+
     @Column(name = "status")
     var status: String? = null
 
@@ -64,4 +75,7 @@ class Server {
 
     @Column(name = "updated_time", nullable = false)
     var updatedTime: LocalDateTime? = null
+
+    @Column(name = "traffic_reset_time")
+    var trafficResetTime: LocalDateTime? = null
 }
